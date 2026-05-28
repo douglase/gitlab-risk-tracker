@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Risk Dashboard — {{ group_path }}</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --muted: #666;
+    --border: #ddd;
+    --low: #e8f5e9;
+    --medium: #fff9c4;
+    --high: #ffe0b2;
+    --critical: #ffcdd2;
+    --unscored: #eceff1;
+  }
+  body { font: 14px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 1.5rem; }
+  h1 { margin: 0 0 .25rem 0; font-size: 1.4rem; }
+  .meta { color: var(--muted); margin-bottom: 1rem; }
+  .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
+  .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; }
+  table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
+  table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
+  table.matrix th { background: white; font-weight: 600; text-align: center; }
+  table.matrix td { cursor: pointer; position: relative; }
+  table.matrix td.low { background: var(--low); }
+  table.matrix td.medium { background: var(--medium); }
+  table.matrix td.high { background: var(--high); }
+  table.matrix td.critical { background: var(--critical); }
+  table.matrix td.unscored { background: var(--unscored); }
+  td .count { font-weight: 700; font-size: 1.2rem; }
+  td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
+  td ul li a { color: #1565c0; text-decoration: none; }
+  td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
+  .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
+  .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
+  .legend span { padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 3px; }
+  section { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  section h2 { margin: 0 0 .75rem 0; font-size: 1rem; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .detail-table th, .detail-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
+  .detail-table th { color: var(--muted); font-weight: 600; }
+  .movement-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+  .movement-grid .card { padding: .5rem; border: 1px solid var(--border); border-radius: 4px; }
+  .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
+  .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
+  .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); }
+  .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
+  .bar .n { font-size: 12px; color: var(--muted); }
+  .trend { width: 100%; height: 200px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Risk Dashboard — {{ group_path }}</h1>
+<div class="meta">Last updated: {{ generated_at }}</div>
+
+<div class="filters">
+  <label>Subsystem
+    <select id="f-subsystem">
+      <option value="">All</option>
+      {% for s in subsystems %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Priority
+    <select id="f-priority">
+      <option value="">All</option>
+      {% for p in priorities %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Risk type
+    <select id="f-risktype">
+      <option value="">All</option>
+      {% for r in risk_types %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+    </select>
+  </label>
+  <span class="legend">
+    <span class="low">low (1–4)</span>
+    <span class="medium">medium (5–9)</span>
+    <span class="high">high (10–15)</span>
+    <span class="critical">critical (16–25)</span>
+  </span>
+</div>
+
+<table class="matrix">
+  <tr>
+    <th></th>
+    <th colspan="5">Likelihood →</th>
+  </tr>
+  <tr>
+    <th rowspan="6" class="axis-label">Consequence ↑</th>
+    <th></th>
+    {% for l in cols %}<th>L = {{ l }}</th>{% endfor %}
+  </tr>
+  {% for c in rows %}
+  <tr>
+    <th>C = {{ c }}</th>
+    {% for l in cols %}
+      {% set issues = matrix.cells[(c, l)] %}
+      {% set tier = severity_tier(c, l) %}
+      <td class="{{ tier }}" data-cell="{{ c }}-{{ l }}" onclick="selectCell('{{ c }}-{{ l }}')">
+        <div class="count">{{ issues | length }}</div>
+        <ul>
+        {% for it in issues[:4] %}
+          <li><a href="{{ it.web_url }}" target="_blank">#{{ it.iid }}</a> {{ it.title | truncate(28) }}</li>
+        {% endfor %}
+        {% if issues | length > 4 %}<li>… +{{ issues | length - 4 }} more</li>{% endif %}
+        </ul>
+      </td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+</table>
+
+<section id="detail-section" class="hidden">
+  <h2>Selected cell — <span id="detail-label"></span></h2>
+  <table class="detail-table">
+    <thead><tr><th>ID</th><th>Title</th></tr></thead>
+    <tbody id="detail-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Trend — issues by severity tier (last 90 days)</h2>
+  <svg class="trend" id="trend-chart" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
+</section>
+
+<section>
+  <h2>Movement (last 30 days)</h2>
+  <div class="movement-grid">
+    <div class="card">
+      <h3>↑ Escalated ({{ movement.escalated | length }})</h3>
+      <ul>{% for r in movement.escalated[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a> → C{{ r.consequence }}×L{{ r.likelihood }}</li>{% endfor %}</ul>
+    </div>
+    <div class="card">
+      <h3>↓ De-escalated ({{ movement.deescalated | length }})</h3>
+      <ul>{% for r in movement.deescalated[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a> → C{{ r.consequence }}×L{{ r.likelihood }}</li>{% endfor %}</ul>
+    </div>
+    <div class="card">
+      <h3>✚ New ({{ movement.new | length }})</h3>
+      <ul>{% for r in movement.new[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a> {{ r.title | truncate(40) }}</li>{% endfor %}</ul>
+    </div>
+    <div class="card">
+      <h3>✔ Closed ({{ movement.closed | length }})</h3>
+      <ul>{% for r in movement.closed[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a></li>{% endfor %}</ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Subsystem breakdown (label occurrences)</h2>
+  {% set max_count = subsystem_counts.values() | max | default(1) %}
+  {% for s in subsystems %}
+    {% set n = subsystem_counts.get(s, 0) %}
+    <div class="bar">
+      <span class="label">{{ s }}</span>
+      <div class="fill" style="width: {{ (n / max_count * 300) | round }}px;"></div>
+      <span class="n">{{ n }}</span>
+    </div>
+  {% endfor %}
+</section>
+
+<script>
+const cells = {{ cells_json | safe }};
+const trends = {{ trends | tojson }};
+
+function selectCell(key) {
+  document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
+  const td = document.querySelector(`td[data-cell="${key}"]`);
+  if (td) td.classList.add('selected');
+  const issues = cells[key] || [];
+  const [c, l] = key.split('-');
+  document.getElementById('detail-label').textContent = `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
+  const body = document.getElementById('detail-body');
+  body.innerHTML = issues.map(i =>
+    `<tr><td><a href="${i.web_url}" target="_blank">#${i.iid}</a></td><td>${i.title}</td></tr>`
+  ).join('') || '<tr><td colspan="2" style="color:#999">No issues in this cell</td></tr>';
+  document.getElementById('detail-section').classList.remove('hidden');
+}
+
+function drawTrend() {
+  const svg = document.getElementById('trend-chart');
+  const W = 800, H = 200, PAD_L = 30, PAD_B = 20;
+  const tiers = ['low', 'medium', 'high', 'critical'];
+  const colors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
+  const N = trends.labels.length;
+  if (N === 0) return;
+  let maxY = 1;
+  tiers.forEach(t => trends.series[t].forEach(v => { if (v > maxY) maxY = v; }));
+  const xStep = (W - PAD_L) / Math.max(N - 1, 1);
+  const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
+  let svgInner = '';
+  tiers.forEach(t => {
+    const pts = trends.series[t].map((v, i) => `${PAD_L + i * xStep},${yScale(v)}`).join(' ');
+    svgInner += `<polyline fill="none" stroke="${colors[t]}" stroke-width="2" points="${pts}"/>`;
+  });
+  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${W}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<text x="${W - 5}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
+  svgInner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${trends.labels[0]}</text>`;
+  svgInner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
+  let lx = PAD_L + 10;
+  tiers.forEach(t => {
+    svgInner += `<rect x="${lx}" y="6" width="10" height="10" fill="${colors[t]}"/>`;
+    svgInner += `<text x="${lx + 14}" y="15" font-size="11" fill="#444">${t}</text>`;
+    lx += 80;
+  });
+  svg.innerHTML = svgInner;
+}
+
+function applyFilters() {
+  const sub = document.getElementById('f-subsystem').value;
+  const pri = document.getElementById('f-priority').value;
+  const rt  = document.getElementById('f-risktype').value;
+  document.querySelectorAll('table.matrix td[data-cell]').forEach(td => {
+    const key = td.dataset.cell;
+    const all = cells[key] || [];
+    const filtered = all.filter(i => {
+      if (sub && !(i.subsystems || []).includes(sub)) return false;
+      if (pri && i.priority !== pri) return false;
+      if (rt && !(i.risk_types || []).includes(rt)) return false;
+      return true;
+    });
+    const count = td.querySelector('.count');
+    if (count) count.textContent = filtered.length;
+  });
+}
+
+document.getElementById('f-subsystem').addEventListener('change', applyFilters);
+document.getElementById('f-priority').addEventListener('change', applyFilters);
+document.getElementById('f-risktype').addEventListener('change', applyFilters);
+drawTrend();
+</script>
+
+</body>
+</html>

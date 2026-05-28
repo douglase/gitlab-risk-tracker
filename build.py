@@ -1,0 +1,460 @@
+"""Build the stp risks dashboard.
+
+Pulls work-item issues from the `stp` group (recursive), snapshots changed
+field values to data/history.ndjson, and renders public/index.html.
+
+Designed to run inside a GitLab CI job; can also run locally with
+GITLAB_TOKEN and (optionally) CI_SERVER_URL exported.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import requests
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+ROOT = Path(__file__).resolve().parent
+HISTORY_PATH = ROOT / "data" / "history.ndjson"
+PUBLIC_DIR = ROOT / "public"
+TEMPLATE_DIR = ROOT / "templates"
+
+GROUP_PATH = os.environ.get("RISK_GROUP_PATH", "stp")
+SUBSYSTEMS = ["optics", "thermal", "software", "mechanical", "electrical"]
+
+CF_CONSEQUENCE = "Consequence (C)"
+CF_LIKELIHOOD = "Likelihood (L)"
+CF_PRIORITY = "Priority Level"
+CF_RISK_TYPE = "Risk Type"
+
+PAGE_SIZE = 100
+
+
+def gitlab_url() -> str:
+    base = os.environ.get("CI_SERVER_URL") or os.environ.get("GITLAB_URL")
+    if not base:
+        sys.exit("Set CI_SERVER_URL or GITLAB_URL (e.g. https://gitlab.example.com).")
+    return base.rstrip("/")
+
+
+def graphql(query: str, variables: dict) -> dict:
+    token = os.environ.get("GITLAB_TOKEN")
+    if not token:
+        sys.exit("GITLAB_TOKEN is not set.")
+    resp = requests.post(
+        f"{gitlab_url()}/api/graphql",
+        json={"query": query, "variables": variables},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    if "errors" in payload:
+        sys.exit(f"GraphQL errors: {json.dumps(payload['errors'], indent=2)}")
+    return payload["data"]
+
+
+SCHEMA_CHECK_QUERY = """
+{
+  __type(name: "Group") {
+    fields { name }
+  }
+  workItemsField: __type(name: "Group") {
+    fields(includeDeprecated: false) {
+      name
+      args { name }
+    }
+  }
+  widgets: __type(name: "WorkItemWidgetCustomFields") {
+    name
+    fields { name }
+  }
+}
+"""
+
+
+def schema_check() -> None:
+    """Fail fast with a clear error if this GitLab version's schema doesn't
+    expose what we expect."""
+    data = graphql(SCHEMA_CHECK_QUERY, {})
+    group_fields = {f["name"] for f in (data["workItemsField"] or {}).get("fields", [])}
+    if "workItems" not in group_fields:
+        sys.exit(
+            "Group.workItems is not available on this GitLab instance. "
+            "Need GitLab 16.7+ (Ultimate) with work items API."
+        )
+    work_items_args = next(
+        (f["args"] for f in data["workItemsField"]["fields"] if f["name"] == "workItems"),
+        [],
+    )
+    arg_names = {a["name"] for a in work_items_args}
+    if "includeDescendants" not in arg_names:
+        sys.exit(
+            "Group.workItems(includeDescendants:) is not available. "
+            f"Available args: {sorted(arg_names)}"
+        )
+    if not data["widgets"]:
+        sys.exit("WorkItemWidgetCustomFields type not found — custom fields widget unavailable.")
+
+
+WORK_ITEMS_QUERY = """
+query($group: ID!, $cursor: String) {
+  group(fullPath: $group) {
+    workItems(
+      types: [ISSUE]
+      includeDescendants: true
+      first: %d
+      after: $cursor
+    ) {
+      pageInfo { endCursor hasNextPage }
+      nodes {
+        id
+        iid
+        title
+        state
+        webUrl
+        createdAt
+        updatedAt
+        closedAt
+        widgets {
+          ... on WorkItemWidgetLabels {
+            type
+            labels { nodes { title } }
+          }
+          ... on WorkItemWidgetCustomFields {
+            type
+            customFieldValues {
+              customField { id name fieldType }
+              ... on WorkItemSelectFieldValue {
+                selectedOptions { id value }
+              }
+              ... on WorkItemNumberFieldValue { value }
+              ... on WorkItemTextFieldValue { value }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+""" % PAGE_SIZE
+
+
+def fetch_work_items() -> list[dict]:
+    items: list[dict] = []
+    cursor: str | None = None
+    while True:
+        data = graphql(WORK_ITEMS_QUERY, {"group": GROUP_PATH, "cursor": cursor})
+        group = data.get("group")
+        if not group:
+            sys.exit(f"Group '{GROUP_PATH}' not found or token lacks access.")
+        conn = group["workItems"]
+        items.extend(conn["nodes"])
+        if not conn["pageInfo"]["hasNextPage"]:
+            break
+        cursor = conn["pageInfo"]["endCursor"]
+    return items
+
+
+def select_value(values: list, name: str) -> str | None:
+    for v in values:
+        if v["customField"]["name"] == name:
+            opts = v.get("selectedOptions") or []
+            if opts:
+                return opts[0]["value"]
+            return v.get("value")
+    return None
+
+
+def select_multi(values: list, name: str) -> list[str]:
+    for v in values:
+        if v["customField"]["name"] == name:
+            opts = v.get("selectedOptions") or []
+            return [o["value"] for o in opts]
+    return []
+
+
+def to_int(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return None
+
+
+def normalize(item: dict) -> dict:
+    labels: list[str] = []
+    cf_values: list = []
+    for w in item.get("widgets") or []:
+        wtype = w.get("type")
+        if wtype == "LABELS":
+            labels = [n["title"] for n in (w.get("labels") or {}).get("nodes", [])]
+        elif wtype == "CUSTOM_FIELDS":
+            cf_values = w.get("customFieldValues") or []
+    subsystems = sorted(set(labels) & set(SUBSYSTEMS))
+    return {
+        "id": item["id"],
+        "iid": item["iid"],
+        "title": item["title"],
+        "state": item["state"].lower(),
+        "web_url": item["webUrl"],
+        "created_at": item.get("createdAt"),
+        "updated_at": item.get("updatedAt"),
+        "closed_at": item.get("closedAt"),
+        "consequence": to_int(select_value(cf_values, CF_CONSEQUENCE)),
+        "likelihood": to_int(select_value(cf_values, CF_LIKELIHOOD)),
+        "priority": select_value(cf_values, CF_PRIORITY),
+        "risk_types": select_multi(cf_values, CF_RISK_TYPE),
+        "subsystems": subsystems,
+    }
+
+
+SNAPSHOT_FIELDS = (
+    "state",
+    "consequence",
+    "likelihood",
+    "priority",
+    "risk_types",
+    "subsystems",
+)
+
+
+def load_history() -> list[dict]:
+    if not HISTORY_PATH.exists():
+        return []
+    rows: list[dict] = []
+    with HISTORY_PATH.open() as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def snapshot_tuple(row: dict) -> tuple:
+    return tuple(
+        tuple(row[k]) if isinstance(row.get(k), list) else row.get(k)
+        for k in SNAPSHOT_FIELDS
+    )
+
+
+def append_history(rows_to_append: list[dict]) -> None:
+    HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with HISTORY_PATH.open("a") as f:
+        for r in rows_to_append:
+            f.write(json.dumps(r, sort_keys=True) + "\n")
+
+
+def update_history(current: list[dict], history: list[dict]) -> list[dict]:
+    """Append change-events for new/changed items and synthetic closures
+    for items that disappeared from the query."""
+    latest_by_id: dict[str, dict] = {}
+    for r in history:
+        latest_by_id[r["id"]] = r
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    new_rows: list[dict] = []
+
+    current_ids = set()
+    for item in current:
+        current_ids.add(item["id"])
+        prev = latest_by_id.get(item["id"])
+        row = {
+            "ts": now,
+            "id": item["id"],
+            "iid": item["iid"],
+            "title": item["title"],
+            "state": item["state"],
+            "consequence": item["consequence"],
+            "likelihood": item["likelihood"],
+            "priority": item["priority"],
+            "risk_types": item["risk_types"],
+            "subsystems": item["subsystems"],
+            "web_url": item["web_url"],
+        }
+        if prev is None or snapshot_tuple(prev) != snapshot_tuple(row):
+            new_rows.append(row)
+
+    for hid, prev in latest_by_id.items():
+        if hid in current_ids:
+            continue
+        if prev.get("state") == "closed":
+            continue
+        new_rows.append(
+            {
+                **prev,
+                "ts": now,
+                "state": "closed",
+            }
+        )
+
+    append_history(new_rows)
+    return history + new_rows
+
+
+def severity_tier(c: int | None, l: int | None) -> str:
+    if c is None or l is None:
+        return "unscored"
+    score = c * l
+    if score >= 16:
+        return "critical"
+    if score >= 10:
+        return "high"
+    if score >= 5:
+        return "medium"
+    return "low"
+
+
+def reconstruct_state_at(history: list[dict], when: datetime) -> dict[str, dict]:
+    cutoff = when.isoformat(timespec="seconds")
+    latest: dict[str, dict] = {}
+    for r in history:
+        if r["ts"] <= cutoff:
+            latest[r["id"]] = r
+    return latest
+
+
+def trend_series(history: list[dict], days: int = 90) -> dict:
+    today = datetime.now(timezone.utc).date()
+    start = today - timedelta(days=days - 1)
+    labels: list[str] = []
+    series: dict[str, list[int]] = {
+        "critical": [],
+        "high": [],
+        "medium": [],
+        "low": [],
+    }
+    for i in range(days):
+        day = start + timedelta(days=i)
+        labels.append(day.isoformat())
+        when = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=timezone.utc)
+        state = reconstruct_state_at(history, when)
+        counts = Counter()
+        for r in state.values():
+            if r.get("state") == "closed":
+                continue
+            counts[severity_tier(r.get("consequence"), r.get("likelihood"))] += 1
+        for tier in series:
+            series[tier].append(counts.get(tier, 0))
+    return {"labels": labels, "series": series}
+
+
+def movement(history: list[dict], days: int = 30) -> dict:
+    today = datetime.now(timezone.utc).date()
+    start_dt = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=days)
+    by_id: dict[str, list[dict]] = defaultdict(list)
+    for r in history:
+        by_id[r["id"]].append(r)
+    escalated: list[dict] = []
+    deescalated: list[dict] = []
+    new_items: list[dict] = []
+    closed_items: list[dict] = []
+    start_iso = start_dt.isoformat(timespec="seconds")
+    for rid, rows in by_id.items():
+        rows_sorted = sorted(rows, key=lambda r: r["ts"])
+        first_seen = rows_sorted[0]
+        if first_seen["ts"] >= start_iso:
+            new_items.append(first_seen)
+        recent = [r for r in rows_sorted if r["ts"] >= start_iso]
+        if not recent:
+            continue
+        for i in range(1, len(recent)):
+            prev, cur = recent[i - 1], recent[i]
+            prev_score = (prev.get("consequence") or 0) * (prev.get("likelihood") or 0)
+            cur_score = (cur.get("consequence") or 0) * (cur.get("likelihood") or 0)
+            if cur_score > prev_score:
+                escalated.append(cur)
+            elif cur_score < prev_score and cur.get("state") != "closed":
+                deescalated.append(cur)
+            if cur.get("state") == "closed" and prev.get("state") != "closed":
+                closed_items.append(cur)
+    return {
+        "escalated": escalated,
+        "deescalated": deescalated,
+        "new": new_items,
+        "closed": closed_items,
+    }
+
+
+def build_matrix(items: list[dict]) -> dict:
+    cells: dict[tuple[int, int], list[dict]] = {(c, l): [] for c in range(1, 6) for l in range(1, 6)}
+    unscored: list[dict] = []
+    for it in items:
+        if it["state"] == "closed":
+            continue
+        c, l = it["consequence"], it["likelihood"]
+        if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
+            unscored.append(it)
+            continue
+        cells[(c, l)].append(it)
+    return {"cells": cells, "unscored": unscored}
+
+
+def render(items: list[dict], history: list[dict]) -> None:
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        autoescape=select_autoescape(["html"]),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    tpl = env.get_template("index.html.j2")
+    matrix = build_matrix(items)
+    subsystem_counts = Counter()
+    for it in items:
+        if it["state"] == "closed":
+            continue
+        for s in it["subsystems"]:
+            subsystem_counts[s] += 1
+    cells_serializable = {
+        f"{c}-{l}": [
+            {
+                "iid": it["iid"],
+                "title": it["title"],
+                "web_url": it["web_url"],
+                "subsystems": it["subsystems"],
+                "priority": it["priority"],
+                "risk_types": it["risk_types"],
+            }
+            for it in matrix["cells"][(c, l)]
+        ]
+        for c in range(1, 6)
+        for l in range(1, 6)
+    }
+    html = tpl.render(
+        group_path=GROUP_PATH,
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        subsystems=SUBSYSTEMS,
+        matrix=matrix,
+        rows=range(5, 0, -1),
+        cols=range(1, 6),
+        severity_tier=severity_tier,
+        cells_json=json.dumps(cells_serializable),
+        trends=trend_series(history),
+        movement=movement(history),
+        subsystem_counts=dict(subsystem_counts),
+        priorities=["High", "Medium", "Low"],
+        risk_types=["Technical", "Cost", "Schedule"],
+    )
+    PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
+    (PUBLIC_DIR / "index.html").write_text(html)
+
+
+def main() -> None:
+    schema_check()
+    raw = fetch_work_items()
+    items = [normalize(it) for it in raw]
+    history = load_history()
+    history = update_history(items, history)
+    render(items, history)
+    print(f"Rendered public/index.html with {len(items)} work items "
+          f"({sum(1 for i in items if i['state'] != 'closed')} open).")
+
+
+if __name__ == "__main__":
+    main()
