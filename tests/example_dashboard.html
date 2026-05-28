@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Risk Dashboard — stp</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --muted: #666;
+    --border: #ddd;
+    --low: #e8f5e9;
+    --medium: #fff9c4;
+    --high: #ffe0b2;
+    --critical: #ffcdd2;
+    --unscored: #eceff1;
+  }
+  body { font: 14px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 1.5rem; }
+  h1 { margin: 0 0 .25rem 0; font-size: 1.4rem; }
+  .meta { color: var(--muted); margin-bottom: 1rem; }
+  .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
+  .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; }
+  table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
+  table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
+  table.matrix th { background: white; font-weight: 600; text-align: center; }
+  table.matrix td { cursor: pointer; position: relative; }
+  table.matrix td.low { background: var(--low); }
+  table.matrix td.medium { background: var(--medium); }
+  table.matrix td.high { background: var(--high); }
+  table.matrix td.critical { background: var(--critical); }
+  table.matrix td.unscored { background: var(--unscored); }
+  td .count { font-weight: 700; font-size: 1.2rem; }
+  td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
+  td ul li a { color: #1565c0; text-decoration: none; }
+  td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
+  .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
+  .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
+  .legend span { padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 3px; }
+  section { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  section h2 { margin: 0 0 .75rem 0; font-size: 1rem; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .detail-table th, .detail-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
+  .detail-table th { color: var(--muted); font-weight: 600; }
+  .movement-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+  .movement-grid .card { padding: .5rem; border: 1px solid var(--border); border-radius: 4px; }
+  .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
+  .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
+  .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); }
+  .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
+  .bar .n { font-size: 12px; color: var(--muted); }
+  .trend { width: 100%; height: 200px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Risk Dashboard — stp</h1>
+<div class="meta">Last updated: 2026-05-28 06:34 UTC</div>
+
+<div class="filters">
+  <label>Subsystem
+    <select id="f-subsystem">
+      <option value="">All</option>
+<option value="optics">optics</option><option value="thermal">thermal</option><option value="software">software</option><option value="mechanical">mechanical</option><option value="electrical">electrical</option>    </select>
+  </label>
+  <label>Priority
+    <select id="f-priority">
+      <option value="">All</option>
+<option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>    </select>
+  </label>
+  <label>Risk type
+    <select id="f-risktype">
+      <option value="">All</option>
+<option value="Technical">Technical</option><option value="Cost">Cost</option><option value="Schedule">Schedule</option>    </select>
+  </label>
+  <span class="legend">
+    <span class="low">low (1–4)</span>
+    <span class="medium">medium (5–9)</span>
+    <span class="high">high (10–15)</span>
+    <span class="critical">critical (16–25)</span>
+  </span>
+</div>
+
+<table class="matrix">
+  <tr>
+    <th></th>
+    <th colspan="5">Likelihood →</th>
+  </tr>
+  <tr>
+    <th rowspan="6" class="axis-label">Consequence ↑</th>
+    <th></th>
+<th>L = 1</th><th>L = 2</th><th>L = 3</th><th>L = 4</th><th>L = 5</th>  </tr>
+  <tr>
+    <th>C = 5</th>
+      <td class="medium" data-cell="5-1" onclick="selectCell('5-1')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="high" data-cell="5-2" onclick="selectCell('5-2')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="high" data-cell="5-3" onclick="selectCell('5-3')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/3" target="_blank">#3</a> Cryocooler procurement long lead</li>
+        </ul>
+      </td>
+      <td class="critical" data-cell="5-4" onclick="selectCell('5-4')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/1" target="_blank">#1</a> Coating delamination...</li>
+        </ul>
+      </td>
+      <td class="critical" data-cell="5-5" onclick="selectCell('5-5')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 4</th>
+      <td class="low" data-cell="4-1" onclick="selectCell('4-1')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="medium" data-cell="4-2" onclick="selectCell('4-2')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="high" data-cell="4-3" onclick="selectCell('4-3')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/4" target="_blank">#4</a> Pointing jitter exceeds budget</li>
+        </ul>
+      </td>
+      <td class="critical" data-cell="4-4" onclick="selectCell('4-4')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/10" target="_blank">#10</a> Optical contamination control</li>
+        </ul>
+      </td>
+      <td class="critical" data-cell="4-5" onclick="selectCell('4-5')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/2" target="_blank">#2</a> Detector ASIC vendor...</li>
+        </ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 3</th>
+      <td class="low" data-cell="3-1" onclick="selectCell('3-1')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="medium" data-cell="3-2" onclick="selectCell('3-2')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/9" target="_blank">#9</a> Vibration test fixture rework</li>
+        </ul>
+      </td>
+      <td class="medium" data-cell="3-3" onclick="selectCell('3-3')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> FPGA firmware tool obsolescence</li>
+        </ul>
+      </td>
+      <td class="high" data-cell="3-4" onclick="selectCell('3-4')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="high" data-cell="3-5" onclick="selectCell('3-5')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 2</th>
+      <td class="low" data-cell="2-1" onclick="selectCell('2-1')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="low" data-cell="2-2" onclick="selectCell('2-2')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/8" target="_blank">#8</a> Storage capacity margin</li>
+        </ul>
+      </td>
+      <td class="medium" data-cell="2-3" onclick="selectCell('2-3')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="medium" data-cell="2-4" onclick="selectCell('2-4')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/6" target="_blank">#6</a> Ground software test bed...</li>
+        </ul>
+      </td>
+      <td class="high" data-cell="2-5" onclick="selectCell('2-5')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 1</th>
+      <td class="low" data-cell="1-1" onclick="selectCell('1-1')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="low" data-cell="1-2" onclick="selectCell('1-2')">
+        <div class="count">1</div>
+        <ul>
+          <li><a href="https://gitlab.example.com/stp/sub/-/work_items/7" target="_blank">#7</a> Documentation backlog</li>
+        </ul>
+      </td>
+      <td class="low" data-cell="1-3" onclick="selectCell('1-3')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="low" data-cell="1-4" onclick="selectCell('1-4')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+      <td class="medium" data-cell="1-5" onclick="selectCell('1-5')">
+        <div class="count">0</div>
+        <ul>
+        </ul>
+      </td>
+  </tr>
+</table>
+
+<section id="detail-section" class="hidden">
+  <h2>Selected cell — <span id="detail-label"></span></h2>
+  <table class="detail-table">
+    <thead><tr><th>ID</th><th>Title</th></tr></thead>
+    <tbody id="detail-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Trend — issues by severity tier (last 90 days)</h2>
+  <svg class="trend" id="trend-chart" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
+</section>
+
+<section>
+  <h2>Movement (last 30 days)</h2>
+  <div class="movement-grid">
+    <div class="card">
+      <h3>↑ Escalated (1)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> → C4×L3</li></ul>
+    </div>
+    <div class="card">
+      <h3>↓ De-escalated (1)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> → C3×L3</li></ul>
+    </div>
+    <div class="card">
+      <h3>✚ New (9)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/6" target="_blank">#6</a> Ground software test bed availability</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/99" target="_blank">#99</a> Retired vendor risk</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/3" target="_blank">#3</a> Cryocooler procurement long lead</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> FPGA firmware tool obsolescence</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/7" target="_blank">#7</a> Documentation backlog</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/8" target="_blank">#8</a> Storage capacity margin</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/9" target="_blank">#9</a> Vibration test fixture rework</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/10" target="_blank">#10</a> Optical contamination control</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/11" target="_blank">#11</a> Unscored placeholder risk</li></ul>
+    </div>
+    <div class="card">
+      <h3>✔ Closed (2)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/99" target="_blank">#99</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/10" target="_blank">#10</a></li></ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Subsystem breakdown (label occurrences)</h2>
+    <div class="bar">
+      <span class="label">optics</span>
+      <div class="fill" style="width: 180.0px;"></div>
+      <span class="n">3</span>
+    </div>
+    <div class="bar">
+      <span class="label">thermal</span>
+      <div class="fill" style="width: 120.0px;"></div>
+      <span class="n">2</span>
+    </div>
+    <div class="bar">
+      <span class="label">software</span>
+      <div class="fill" style="width: 300.0px;"></div>
+      <span class="n">5</span>
+    </div>
+    <div class="bar">
+      <span class="label">mechanical</span>
+      <div class="fill" style="width: 180.0px;"></div>
+      <span class="n">3</span>
+    </div>
+    <div class="bar">
+      <span class="label">electrical</span>
+      <div class="fill" style="width: 120.0px;"></div>
+      <span class="n">2</span>
+    </div>
+</section>
+
+<script>
+const cells = {"1-1": [], "1-2": [{"iid": "7", "title": "Documentation backlog", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "subsystems": ["software"], "priority": "Low", "risk_types": ["Schedule"]}], "1-3": [], "1-4": [], "1-5": [], "2-1": [], "2-2": [{"iid": "8", "title": "Storage capacity margin", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "subsystems": ["software"], "priority": "Low", "risk_types": ["Technical"]}], "2-3": [], "2-4": [{"iid": "6", "title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "subsystems": ["software"], "priority": "Medium", "risk_types": ["Schedule"]}], "2-5": [], "3-1": [], "3-2": [{"iid": "9", "title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "subsystems": ["mechanical"], "priority": "Medium", "risk_types": ["Cost"]}], "3-3": [{"iid": "5", "title": "FPGA firmware tool obsolescence", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "subsystems": ["electrical", "software"], "priority": "Medium", "risk_types": ["Technical"]}], "3-4": [], "3-5": [], "4-1": [], "4-2": [], "4-3": [{"iid": "4", "title": "Pointing jitter exceeds budget", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "subsystems": ["mechanical", "optics"], "priority": "Medium", "risk_types": ["Technical"]}], "4-4": [{"iid": "10", "title": "Optical contamination control", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "subsystems": ["optics"], "priority": "High", "risk_types": ["Technical"]}], "4-5": [{"iid": "2", "title": "Detector ASIC vendor schedule slip", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "subsystems": ["electrical"], "priority": "High", "risk_types": ["Schedule", "Cost"]}], "5-1": [], "5-2": [], "5-3": [{"iid": "3", "title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "subsystems": ["mechanical", "thermal"], "priority": "High", "risk_types": ["Cost", "Schedule"]}], "5-4": [{"iid": "1", "title": "Coating delamination under thermal cycling", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "subsystems": ["optics", "thermal"], "priority": "High", "risk_types": ["Technical"]}], "5-5": []};
+const trends = {"labels": ["2026-02-28", "2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-21", "2026-03-22", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-11", "2026-04-12", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28"], "series": {"critical": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3], "high": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], "low": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2], "medium": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 3]}};
+
+function selectCell(key) {
+  document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
+  const td = document.querySelector(`td[data-cell="${key}"]`);
+  if (td) td.classList.add('selected');
+  const issues = cells[key] || [];
+  const [c, l] = key.split('-');
+  document.getElementById('detail-label').textContent = `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
+  const body = document.getElementById('detail-body');
+  body.innerHTML = issues.map(i =>
+    `<tr><td><a href="${i.web_url}" target="_blank">#${i.iid}</a></td><td>${i.title}</td></tr>`
+  ).join('') || '<tr><td colspan="2" style="color:#999">No issues in this cell</td></tr>';
+  document.getElementById('detail-section').classList.remove('hidden');
+}
+
+function drawTrend() {
+  const svg = document.getElementById('trend-chart');
+  const W = 800, H = 200, PAD_L = 30, PAD_B = 20;
+  const tiers = ['low', 'medium', 'high', 'critical'];
+  const colors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
+  const N = trends.labels.length;
+  if (N === 0) return;
+  let maxY = 1;
+  tiers.forEach(t => trends.series[t].forEach(v => { if (v > maxY) maxY = v; }));
+  const xStep = (W - PAD_L) / Math.max(N - 1, 1);
+  const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
+  let svgInner = '';
+  tiers.forEach(t => {
+    const pts = trends.series[t].map((v, i) => `${PAD_L + i * xStep},${yScale(v)}`).join(' ');
+    svgInner += `<polyline fill="none" stroke="${colors[t]}" stroke-width="2" points="${pts}"/>`;
+  });
+  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${W}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<text x="${W - 5}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
+  svgInner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${trends.labels[0]}</text>`;
+  svgInner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
+  let lx = PAD_L + 10;
+  tiers.forEach(t => {
+    svgInner += `<rect x="${lx}" y="6" width="10" height="10" fill="${colors[t]}"/>`;
+    svgInner += `<text x="${lx + 14}" y="15" font-size="11" fill="#444">${t}</text>`;
+    lx += 80;
+  });
+  svg.innerHTML = svgInner;
+}
+
+function applyFilters() {
+  const sub = document.getElementById('f-subsystem').value;
+  const pri = document.getElementById('f-priority').value;
+  const rt  = document.getElementById('f-risktype').value;
+  document.querySelectorAll('table.matrix td[data-cell]').forEach(td => {
+    const key = td.dataset.cell;
+    const all = cells[key] || [];
+    const filtered = all.filter(i => {
+      if (sub && !(i.subsystems || []).includes(sub)) return false;
+      if (pri && i.priority !== pri) return false;
+      if (rt && !(i.risk_types || []).includes(rt)) return false;
+      return true;
+    });
+    const count = td.querySelector('.count');
+    if (count) count.textContent = filtered.length;
+  });
+}
+
+document.getElementById('f-subsystem').addEventListener('change', applyFilters);
+document.getElementById('f-priority').addEventListener('change', applyFilters);
+document.getElementById('f-risktype').addEventListener('change', applyFilters);
+drawTrend();
+</script>
+
+</body>
+</html>
