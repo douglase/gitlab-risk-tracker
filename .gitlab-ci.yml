@@ -1,0 +1,25 @@
+pages:
+  image: python:3.12-slim
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+    - pip install --no-cache-dir -r requirements.txt
+  script:
+    - python build.py
+    - git config user.email "risks-dashboard-bot@${CI_SERVER_HOST}"
+    - git config user.name "risks-dashboard-bot"
+    - git add data/history.ndjson
+    - |
+      if git diff --cached --quiet; then
+        echo "No history changes to commit."
+      else
+        git commit -m "snapshot: $(date -u +%F) [skip ci]"
+        git push -o ci.skip \
+          "https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
+          "HEAD:${CI_DEFAULT_BRANCH}"
+      fi
+  artifacts:
+    paths:
+      - public
