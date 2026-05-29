@@ -79,27 +79,42 @@ SCHEMA_CHECK_QUERY = """
 
 
 def schema_check() -> None:
-    """Fail fast with a clear error if this GitLab version's schema doesn't
-    expose what we expect."""
-    data = graphql(SCHEMA_CHECK_QUERY, {})
-    group_fields = {f["name"] for f in (data["workItemsField"] or {}).get("fields", [])}
+    """Probe the schema to warn early if this GitLab instance doesn't expose
+    what we expect. Non-fatal — some instances restrict GraphQL introspection
+    on experimental fields even though the actual query works. Falls through
+    to fetch_work_items() which will surface the real error if any."""
+    try:
+        data = graphql(SCHEMA_CHECK_QUERY, {})
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"warning: schema introspection failed ({e}); continuing.", file=sys.stderr)
+        return
+    group_fields = {f["name"] for f in (data.get("workItemsField") or {}).get("fields", [])}
     if "workItems" not in group_fields:
-        sys.exit(
-            "Group.workItems is not available on this GitLab instance. "
-            "Need GitLab 16.7+ (Ultimate) with work items API."
+        print(
+            "warning: Group.workItems not visible via introspection on this instance. "
+            "This is sometimes a permissions / introspection-restriction quirk on "
+            "experimental fields; will attempt the real query anyway.",
+            file=sys.stderr,
         )
+        return
     work_items_args = next(
         (f["args"] for f in data["workItemsField"]["fields"] if f["name"] == "workItems"),
         [],
     )
     arg_names = {a["name"] for a in work_items_args}
     if "includeDescendants" not in arg_names:
-        sys.exit(
-            "Group.workItems(includeDescendants:) is not available. "
-            f"Available args: {sorted(arg_names)}"
+        print(
+            f"warning: Group.workItems(includeDescendants:) not visible via introspection. "
+            f"Available args: {sorted(arg_names)}. Continuing.",
+            file=sys.stderr,
         )
-    if not data["widgets"]:
-        sys.exit("WorkItemWidgetCustomFields type not found — custom fields widget unavailable.")
+    if not data.get("widgets"):
+        print(
+            "warning: WorkItemWidgetCustomFields type not visible via introspection. Continuing.",
+            file=sys.stderr,
+        )
 
 
 WORK_ITEMS_QUERY = """
