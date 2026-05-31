@@ -20,7 +20,11 @@
   .meta { color: var(--muted); margin-bottom: 1rem; }
   .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
   .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
-  .filters select, .filters input { padding: .25rem .5rem; font: inherit; }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; min-width: 140px; }
+  .filters select[multiple] { min-width: 160px; }
+  .filters .hint { font-size: 10px; color: #aaa; font-weight: normal; }
+  .filters button { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; align-self: end; }
+  .filters button:hover { background: #f5f5f5; }
   table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
   table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
   table.matrix th { background: white; font-weight: 600; text-align: center; }
@@ -57,12 +61,11 @@
 <body>
 
 <h1>Risk Dashboard — stp</h1>
-<div class="meta">Last updated: 2026-05-31 05:56 UTC</div>
+<div class="meta">Last updated: 2026-05-31 06:02 UTC</div>
 
 <div class="filters">
-  <label>Subsystem
-    <select id="f-subsystem">
-      <option value="">All</option>
+  <label>Subsystem <span class="hint">(⌘/Ctrl-click for multi)</span>
+    <select id="f-subsystem" multiple size="5">
 <option value="optics">optics</option><option value="thermal">thermal</option><option value="software">software</option><option value="mechanical">mechanical</option><option value="electrical">electrical</option>    </select>
   </label>
   <label>Priority
@@ -75,6 +78,19 @@
       <option value="">All</option>
 <option value="Technical">Technical</option><option value="Cost">Cost</option><option value="Schedule">Schedule</option>    </select>
   </label>
+  <label>Task (TO#) <span class="hint">(multi)</span>
+    <select id="f-to" data-group="to" multiple size="5">
+<option value="TO12- ESC PDR">TO12- ESC PDR</option><option value="TO6- WCC Pre-SRR">TO6- WCC Pre-SRR</option>    </select>
+  </label>
+  <label>ESC <span class="hint">(multi)</span>
+    <select id="f-esc" data-group="esc" multiple size="5">
+<option value="ESC033">ESC033</option><option value="ESC046">ESC046</option>    </select>
+  </label>
+  <label>WCC <span class="hint">(multi)</span>
+    <select id="f-wcc" data-group="wcc" multiple size="5">
+<option value="WCC078">WCC078</option><option value="WCC100">WCC100</option>    </select>
+  </label>
+  <button type="button" id="clear-filters">Clear filters</button>
   <span class="legend">
     <span class="low">low (1–4)</span>
     <span class="medium">medium (5–9)</span>
@@ -274,7 +290,7 @@
 </section>
 
 <script>
-const cells = {"1-1": [], "1-2": [{"iid": "7", "title": "Documentation backlog", "display_title": "Documentation backlog", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "subsystems": ["software"], "priority": "Low", "risk_types": ["Schedule"]}], "1-3": [], "1-4": [], "1-5": [], "2-1": [], "2-2": [{"iid": "8", "title": "Storage capacity margin", "display_title": "Storage capacity margin", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "subsystems": ["software"], "priority": "Low", "risk_types": ["Technical"]}], "2-3": [], "2-4": [{"iid": "6", "title": "Ground software test bed availability", "display_title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "subsystems": ["software"], "priority": "Medium", "risk_types": ["Schedule"]}], "2-5": [], "3-1": [], "3-2": [{"iid": "9", "title": "Vibration test fixture rework", "display_title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "subsystems": ["mechanical"], "priority": "Medium", "risk_types": ["Cost"]}], "3-3": [{"iid": "5", "title": "FPGA firmware tool obsolescence", "display_title": "FPGA firmware tool obsolescence", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "subsystems": ["electrical", "software"], "priority": "Medium", "risk_types": ["Technical"]}], "3-4": [], "3-5": [], "4-1": [], "4-2": [], "4-3": [{"iid": "4", "title": "Pointing jitter exceeds budget", "display_title": "Pointing jitter exceeds budget", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "subsystems": ["mechanical", "optics"], "priority": "Medium", "risk_types": ["Technical"]}], "4-4": [{"iid": "10", "title": "Optical contamination control", "display_title": "Optical contamination control", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "subsystems": ["optics"], "priority": "High", "risk_types": ["Technical"]}], "4-5": [{"iid": "2", "title": "Detector ASIC vendor schedule slip", "display_title": "Detector ASIC vendor schedule slip", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "subsystems": ["electrical"], "priority": "High", "risk_types": ["Schedule", "Cost"]}], "5-1": [], "5-2": [], "5-3": [{"iid": "3", "title": "Cryocooler procurement long lead", "display_title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "subsystems": ["mechanical", "thermal"], "priority": "High", "risk_types": ["Cost", "Schedule"]}], "5-4": [{"iid": "1", "title": "Coating delamination under thermal cycling", "display_title": "Coating delamination under thermal cycling", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "subsystems": ["optics", "thermal"], "priority": "High", "risk_types": ["Technical"]}], "5-5": []};
+const cells = {"1-1": [], "1-2": [{"iid": "7", "title": "Documentation backlog", "display_title": "Documentation backlog", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "subsystems": ["software"], "priority": "Low", "risk_types": ["Schedule"], "label_groups": {"to": [], "esc": [], "wcc": []}}], "1-3": [], "1-4": [], "1-5": [], "2-1": [], "2-2": [{"iid": "8", "title": "Storage capacity margin", "display_title": "Storage capacity margin", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "subsystems": ["software"], "priority": "Low", "risk_types": ["Technical"], "label_groups": {"to": [], "esc": [], "wcc": ["WCC078"]}}], "2-3": [], "2-4": [{"iid": "6", "title": "Ground software test bed availability", "display_title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "subsystems": ["software"], "priority": "Medium", "risk_types": ["Schedule"], "label_groups": {"to": ["TO12- ESC PDR"], "esc": [], "wcc": []}}], "2-5": [], "3-1": [], "3-2": [{"iid": "9", "title": "Vibration test fixture rework", "display_title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "subsystems": ["mechanical"], "priority": "Medium", "risk_types": ["Cost"], "label_groups": {"to": [], "esc": [], "wcc": []}}], "3-3": [{"iid": "5", "title": "FPGA firmware tool obsolescence", "display_title": "FPGA firmware tool obsolescence", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "subsystems": ["electrical", "software"], "priority": "Medium", "risk_types": ["Technical"], "label_groups": {"to": [], "esc": [], "wcc": []}}], "3-4": [], "3-5": [], "4-1": [], "4-2": [], "4-3": [{"iid": "4", "title": "Pointing jitter exceeds budget", "display_title": "Pointing jitter exceeds budget", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "subsystems": ["mechanical", "optics"], "priority": "Medium", "risk_types": ["Technical"], "label_groups": {"to": [], "esc": ["ESC033"], "wcc": []}}], "4-4": [{"iid": "10", "title": "Optical contamination control", "display_title": "Optical contamination control", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "subsystems": ["optics"], "priority": "High", "risk_types": ["Technical"], "label_groups": {"to": [], "esc": [], "wcc": ["WCC100"]}}], "4-5": [{"iid": "2", "title": "Detector ASIC vendor schedule slip", "display_title": "Detector ASIC vendor schedule slip", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "subsystems": ["electrical"], "priority": "High", "risk_types": ["Schedule", "Cost"], "label_groups": {"to": ["TO12- ESC PDR"], "esc": ["ESC046"], "wcc": []}}], "5-1": [], "5-2": [], "5-3": [{"iid": "3", "title": "Cryocooler procurement long lead", "display_title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "subsystems": ["mechanical", "thermal"], "priority": "High", "risk_types": ["Cost", "Schedule"], "label_groups": {"to": ["TO6- WCC Pre-SRR"], "esc": [], "wcc": []}}], "5-4": [{"iid": "1", "title": "Risk# WCC100 Coating delamination under thermal cycling", "display_title": "Coating delamination under thermal cycling", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "subsystems": ["optics", "thermal"], "priority": "High", "risk_types": ["Technical"], "label_groups": {"to": ["TO6- WCC Pre-SRR"], "esc": [], "wcc": ["WCC100"]}}], "5-5": []};
 const trends = {"labels": ["2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-21", "2026-03-22", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-11", "2026-04-12", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"], "series": {"critical": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3], "high": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], "low": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2], "medium": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 3]}};
 
 const MAX_TITLE_CHARS = 38;
@@ -290,18 +306,36 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
+function getMulti(id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+const LABEL_GROUP_KEYS = Array.from(document.querySelectorAll('select[data-group]'))
+  .map(el => el.dataset.group);
+
 function currentFilter() {
-  return {
-    sub: document.getElementById('f-subsystem').value,
-    pri: document.getElementById('f-priority').value,
-    rt:  document.getElementById('f-risktype').value,
+  const f = {
+    subs: getMulti('f-subsystem'),
+    pri:  document.getElementById('f-priority').value,
+    rt:   document.getElementById('f-risktype').value,
+    groups: {},
   };
+  LABEL_GROUP_KEYS.forEach(k => { f.groups[k] = getMulti('f-' + k); });
+  return f;
 }
 
 function matchesFilter(item, f) {
-  if (f.sub && !(item.subsystems || []).includes(f.sub)) return false;
+  if (f.subs.length && !f.subs.some(s => (item.subsystems || []).includes(s))) return false;
   if (f.pri && item.priority !== f.pri) return false;
   if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
+  for (const k of LABEL_GROUP_KEYS) {
+    const selected = f.groups[k];
+    if (selected.length === 0) continue;
+    const itemVals = (item.label_groups && item.label_groups[k]) || [];
+    if (!selected.some(v => itemVals.includes(v))) return false;
+  }
   return true;
 }
 
@@ -377,9 +411,14 @@ function applyFilters() {
   renderDetail();
 }
 
-document.getElementById('f-subsystem').addEventListener('change', applyFilters);
-document.getElementById('f-priority').addEventListener('change', applyFilters);
-document.getElementById('f-risktype').addEventListener('change', applyFilters);
+document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
+document.getElementById('clear-filters').addEventListener('click', () => {
+  document.querySelectorAll('.filters select').forEach(el => {
+    Array.from(el.options).forEach(o => o.selected = false);
+    if (!el.multiple) el.value = '';
+  });
+  applyFilters();
+});
 applyFilters();
 drawTrend();
 </script>
