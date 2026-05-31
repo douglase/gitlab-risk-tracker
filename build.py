@@ -41,21 +41,19 @@ RISK_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Label pattern groups for the filter UI. (key, regex, ui_label)
-LABEL_GROUPS: list[tuple[str, "re.Pattern[str]", str]] = [
-    ("to", re.compile(r"^TO\d", re.IGNORECASE), "Task (TO#)"),
-    ("esc", re.compile(r"^ESC", re.IGNORECASE), "ESC"),
-    ("wcc", re.compile(r"^WCC", re.IGNORECASE), "WCC"),
+# Regex patterns identifying product labels. Any label matching one of these
+# regexes (case-insensitive) is collected into the combined "Product" filter.
+PRODUCT_PATTERNS: list[str] = [
+    r"^TO\d",
+    r"^ESC",
+    r"^WCC",
 ]
+PRODUCT_REGEXES = [re.compile(p, re.IGNORECASE) for p in PRODUCT_PATTERNS]
 
 
-def group_labels(labels: list[str]) -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {key: [] for key, _, _ in LABEL_GROUPS}
-    for label in labels:
-        for key, pat, _ in LABEL_GROUPS:
-            if pat.match(label):
-                out[key].append(label)
-    return {k: sorted(v) for k, v in out.items()}
+def match_products(labels: list[str]) -> list[str]:
+    matched = {l for l in labels if any(r.match(l) for r in PRODUCT_REGEXES)}
+    return sorted(matched)
 
 
 MAX_PREVIEW_CHARS = 280
@@ -356,9 +354,8 @@ def normalize(item: dict) -> dict:
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
-    label_groups = group_labels(labels)
-    grouped = {l for vals in label_groups.values() for l in vals}
-    other_labels = sorted(set(labels) - set(SUBSYSTEMS) - grouped)
+    products = match_products(labels)
+    other_labels = sorted(set(labels) - set(SUBSYSTEMS) - set(products))
     return {
         "id": item["id"],
         "iid": item["iid"],
@@ -374,7 +371,7 @@ def normalize(item: dict) -> dict:
         "priority": select_value(cf_values, CF_PRIORITY),
         "risk_types": select_multi(cf_values, CF_RISK_TYPE),
         "subsystems": subsystems,
-        "label_groups": label_groups,
+        "products": products,
         "other_labels": other_labels,
         "assignees": assignees,
         "description": description,
@@ -553,8 +550,6 @@ def build_matrix(items: list[dict]) -> dict:
     cells: dict[tuple[int, int], list[dict]] = {(c, l): [] for c in range(1, 6) for l in range(1, 6)}
     unscored: list[dict] = []
     for it in items:
-        if it["state"] == "closed":
-            continue
         c, l = it["consequence"], it["likelihood"]
         if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
             unscored.append(it)
@@ -586,24 +581,23 @@ def render(items: list[dict], history: list[dict]) -> None:
                 "title": it["title"],
                 "display_title": it["display_title"],
                 "web_url": it["web_url"],
+                "state": it["state"],
                 "subsystems": it["subsystems"],
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
-                "label_groups": it["label_groups"],
+                "products": it["products"],
             }
             for it in matrix["cells"][(c, l)]
         ]
         for c in range(1, 6)
         for l in range(1, 6)
     }
-    label_options: dict[str, list[str]] = {key: set() for key, _, _ in LABEL_GROUPS}
+    product_options: set[str] = set()
     for it in items:
         if it["state"] == "closed":
             continue
-        for key, vals in it["label_groups"].items():
-            label_options[key].update(vals)
-    label_options = {k: sorted(v) for k, v in label_options.items()}
-    label_groups_meta = [{"key": k, "label": lbl} for k, _, lbl in LABEL_GROUPS]
+        product_options.update(it["products"])
+    product_options_sorted = sorted(product_options)
 
     section_meta = [
         {"key": key, "header": header, "slug": _slugify(header)}
@@ -611,8 +605,6 @@ def render(items: list[dict], history: list[dict]) -> None:
     ]
     risks_table: list[dict] = []
     for it in items:
-        if it["state"] == "closed":
-            continue
         c, l = it["consequence"], it["likelihood"]
         if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
             continue
@@ -625,13 +617,14 @@ def render(items: list[dict], history: list[dict]) -> None:
             "title": it["title"],
             "display_title": it["display_title"],
             "web_url": it["web_url"],
+            "state": it["state"],
             "consequence": c,
             "likelihood": l,
             "score": c * l,
             "priority": it["priority"],
             "risk_types": it["risk_types"],
             "subsystems": it["subsystems"],
-            "label_groups": it["label_groups"],
+            "products": it["products"],
             "other_labels": it["other_labels"],
             "assignees": it["assignees"],
             "sections": rendered_sections,
@@ -651,8 +644,8 @@ def render(items: list[dict], history: list[dict]) -> None:
         subsystem_counts=dict(subsystem_counts),
         priorities=["High", "Medium", "Low"],
         risk_types=["Technical", "Cost", "Schedule"],
-        label_groups_meta=label_groups_meta,
-        label_options=label_options,
+        product_options=product_options_sorted,
+        product_patterns=PRODUCT_PATTERNS,
         risks_table_json=json.dumps(risks_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,

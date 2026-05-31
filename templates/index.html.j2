@@ -103,6 +103,13 @@
       {% for s in subsystems %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
     </select>
   </label>
+  <label>Status
+    <select id="f-status">
+      <option value="open" selected>Open</option>
+      <option value="closed">Closed</option>
+      <option value="">All</option>
+    </select>
+  </label>
   <label>Priority
     <select id="f-priority">
       <option value="">All</option>
@@ -115,15 +122,13 @@
       {% for r in risk_types %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
     </select>
   </label>
-  {% for grp in label_groups_meta %}
-  {% if label_options[grp.key] %}
-  <label>{{ grp.label }} <span class="hint">(multi)</span>
-    <select id="f-{{ grp.key }}" data-group="{{ grp.key }}" multiple size="5">
-      {% for v in label_options[grp.key] %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+  {% if product_options %}
+  <label>Product <span class="hint">(multi · matches {{ product_patterns | join(', ') }})</span>
+    <select id="f-products" multiple size="5">
+      {% for v in product_options %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
     </select>
   </label>
   {% endif %}
-  {% endfor %}
   <button type="button" id="clear-filters">Clear filters</button>
   <span class="legend">
     <span class="low">low (1–4)</span>
@@ -255,30 +260,22 @@ function getMulti(id) {
   return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
-const LABEL_GROUP_KEYS = Array.from(document.querySelectorAll('select[data-group]'))
-  .map(el => el.dataset.group);
-
 function currentFilter() {
-  const f = {
-    subs: getMulti('f-subsystem'),
-    pri:  document.getElementById('f-priority').value,
-    rt:   document.getElementById('f-risktype').value,
-    groups: {},
+  return {
+    status:   document.getElementById('f-status').value,
+    subs:     getMulti('f-subsystem'),
+    pri:      document.getElementById('f-priority').value,
+    rt:       document.getElementById('f-risktype').value,
+    products: getMulti('f-products'),
   };
-  LABEL_GROUP_KEYS.forEach(k => { f.groups[k] = getMulti('f-' + k); });
-  return f;
 }
 
 function matchesFilter(item, f) {
+  if (f.status && item.state !== f.status) return false;
   if (f.subs.length && !f.subs.some(s => (item.subsystems || []).includes(s))) return false;
   if (f.pri && item.priority !== f.pri) return false;
   if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
-  for (const k of LABEL_GROUP_KEYS) {
-    const selected = f.groups[k];
-    if (selected.length === 0) continue;
-    const itemVals = (item.label_groups && item.label_groups[k]) || [];
-    if (!selected.some(v => itemVals.includes(v))) return false;
-  }
+  if (f.products.length && !f.products.some(p => (item.products || []).includes(p))) return false;
   return true;
 }
 
@@ -309,31 +306,33 @@ function renderDetail() {
 
 function drawTrend() {
   const svg = document.getElementById('trend-chart');
-  const W = 800, H = 200, PAD_L = 30, PAD_B = 20;
+  const W = 800, H = 200, PAD_L = 30, PAD_B = 20, PAD_R = 80;
   const tiers = ['low', 'medium', 'high', 'critical'];
   const colors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
   const N = trends.labels.length;
   if (N === 0) return;
   let maxY = 1;
   tiers.forEach(t => trends.series[t].forEach(v => { if (v > maxY) maxY = v; }));
-  const xStep = (W - PAD_L) / Math.max(N - 1, 1);
+  const plotRight = W - PAD_R;
+  const xStep = (plotRight - PAD_L) / Math.max(N - 1, 1);
   const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
   let svgInner = '';
   tiers.forEach(t => {
     const pts = trends.series[t].map((v, i) => `${PAD_L + i * xStep},${yScale(v)}`).join(' ');
     svgInner += `<polyline fill="none" stroke="${colors[t]}" stroke-width="2" points="${pts}"/>`;
   });
-  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${W}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
   svgInner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
-  svgInner += `<text x="${W - 5}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
+  // Current-value labels just past the right edge of each line.
+  tiers.forEach(t => {
+    const last = trends.series[t][N - 1] || 0;
+    const y = yScale(last);
+    svgInner += `<circle cx="${plotRight}" cy="${y}" r="2.5" fill="${colors[t]}"/>`;
+    svgInner += `<text x="${plotRight + 6}" y="${y + 3.5}" font-size="11" fill="${colors[t]}" font-weight="600">${t}: ${last}</text>`;
+  });
+  svgInner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
   svgInner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${trends.labels[0]}</text>`;
   svgInner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
-  let lx = PAD_L + 10;
-  tiers.forEach(t => {
-    svgInner += `<rect x="${lx}" y="6" width="10" height="10" fill="${colors[t]}"/>`;
-    svgInner += `<text x="${lx + 14}" y="15" font-size="11" fill="#444">${t}</text>`;
-    lx += 80;
-  });
   svg.innerHTML = svgInner;
 }
 
