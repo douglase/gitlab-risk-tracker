@@ -5,6 +5,13 @@ on the matrix counts, history-append semantics, vanished->closed handling,
 and unscored bucketing. Leaves behind public/index.html as a working
 example of the dashboard.
 
+Sample risks are loosely based on examples from the NASA Risk Management
+Handbook (NASA/SP-2011-3422, Rev. A, 2023):
+https://www.nasa.gov/wp-content/uploads/2023/08/nasa-risk-mgmt-handbook.pdf
+Risk #1(a) Planetary Contamination and Risk #8 Staffing for Legacy
+Software are paraphrased from the handbook; the remaining items are
+synthetic variations in similar style for matrix-population purposes.
+
 Run:
     python -m pytest tests/test_build.py -v
 or directly:
@@ -99,38 +106,101 @@ def _item(
     }
 
 
-SAMPLE_DESC_1 = """## Risk Description
+SAMPLE_DESC_PLANETARY = """## Risk Description
 
-Coating may **delaminate** when subjected to repeated thermal cycling
-between operational extremes. Bonding tests on the witness coupon
-showed adhesion margin of only ~20% above the spec floor.
+Given that the state of knowledge of Planet X's atmosphere is **limited**, that it is
+difficult to ascertain more information about Planet X's atmosphere from Earth, and that
+the spacecraft contains radioactive material, there is a possibility of unanticipated
+atmospheric characteristics during the aerocapture maneuver at Planet X leading to a
+less-than-optimal trajectory adversely impacting the spacecraft, thereby resulting in
+spacecraft breakup and radioactive contamination of Planet X.
+
+### Narrative
+
+The atmosphere of Planet X has been observed with ground-based and Earth-orbital
+telescopes, including during eclipses, and spectral analysis of the data has been
+performed. There have also been flybys to observe atmosphere thickness, species, and
+density. Uncertainties in the results are large because of inherent variability in the
+atmosphere, both spatially and timewise. Additionally there is considerable inherent
+uncertainty in the heat-shield thermal-response models, which are based on assumptions
+about the effects of ionizing radiation on heat transfer and the condition of the
+vehicle surface as it affects boundary-layer transition.
 
 ## Action Plan / Notes
 
-- Order replacement coupons from vendor.
-- Re-run cycling test at 2× rate.
-- Track in JIRA ticket COAT-118.
+- Refine atmospheric uncertainty model with the latest flyby data.
+- Add margin to heat-shield ablation analysis for upper-bound density.
+- Coordinate with the planetary protection office on contamination scenarios.
 
 ## Risk Mitigation Planning
 
-If margin remains <30%, switch to alternate coating supplier;
-schedule impact is ~4 weeks.
+If shield margin remains below 30% after the refined analysis, expand the aerocapture
+corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact
+~6 months; cost impact ~$45M.
+
+*Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(a).*
+"""
+
+SAMPLE_DESC_STAFFING = """## Risk Description
+
+Given that the decision has been made to adapt legacy software for this mission and the
+Agency projects a scarcity of qualified programmers familiar with the legacy language,
+there is a possibility that there may be **insufficient staffing at the high labor
+categories** adversely impacting the control software, which could result in delays in
+the delivery of the software and/or software reliability issues.
+
+### Narrative
+
+NASA's budget for future years reflects reduced funding for certain legacy programs and
+in some cases outright termination of the program. It is anticipated that this will lead
+to retirements and/or resignations as qualified staff review their options. In
+particular, a predominance of the staff departures may be in the higher labor categories
+among people who have experience using the programming languages associated with the
+legacy software.
+
+## Action Plan / Notes
+
+- Survey current legacy-language staff for retirement intent within the next 24 months.
+- Begin knowledge-capture sprints with senior engineers.
+- Open requisitions for two senior engineers familiar with the legacy stack.
+
+## Risk Mitigation Planning
+
+If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting
+effort to the modern language and accept an ~9-month schedule slip.
+
+*Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.*
 """
 
 SAMPLE_ITEMS = [
-    _item(1, "Risk# WCC100 Coating delamination under thermal cycling", "5", "4", "High", ["Technical"], ["optics", "thermal", "TO6- WCC Pre-SRR", "WCC100"],
-          description=SAMPLE_DESC_1,
-          assignees=[{"username": "ada", "name": "Ada Lovelace"}]),
-    _item(2, "Detector ASIC vendor schedule slip", "4", "5", "High", ["Schedule", "Cost"], ["electrical", "TO12- ESC PDR", "ESC046"]),
-    _item(3, "Cryocooler procurement long lead", "5", "3", "High", ["Cost", "Schedule"], ["thermal", "mechanical", "TO6- WCC Pre-SRR"]),
-    _item(4, "Pointing jitter exceeds budget", "4", "3", "Medium", ["Technical"], ["mechanical", "optics", "ESC033"]),
-    _item(5, "FPGA firmware tool obsolescence", "3", "3", "Medium", ["Technical"], ["electrical", "software"]),
-    _item(6, "Ground software test bed availability", "2", "4", "Medium", ["Schedule"], ["software", "TO12- ESC PDR"]),
-    _item(7, "Documentation backlog", "1", "2", "Low", ["Schedule"], ["software"]),
-    _item(8, "Storage capacity margin", "2", "2", "Low", ["Technical"], ["software", "WCC078"]),
-    _item(9, "Vibration test fixture rework", "3", "2", "Medium", ["Cost"], ["mechanical"]),
-    _item(10, "Optical contamination control", "4", "4", "High", ["Technical"], ["optics", "WCC100"]),
-    _item(11, "Unscored placeholder risk", None, None, "Low", [], ["software"]),
+    _item(1, "Risk# 1A Planetary contamination from aerocapture breakup",
+          "5", "3", "High", ["Technical"],
+          ["thermal", "mechanical", "TO12- Planet X EDL", "WCC100"],
+          description=SAMPLE_DESC_PLANETARY,
+          assignees=[{"username": "sride", "name": "Sally Ride"}]),
+    _item(2, "Risk# 8 Staffing for legacy software",
+          "4", "4", "High", ["Schedule", "Cost"],
+          ["software", "TO8- Software Dev", "WCC078"],
+          description=SAMPLE_DESC_STAFFING,
+          assignees=[{"username": "mjemison", "name": "Mae Jemison"}]),
+    _item(3, "Cryocooler procurement long lead", "5", "2", "High", ["Cost", "Schedule"],
+          ["thermal", "mechanical", "TO6- WCC Pre-SRR"]),
+    _item(4, "Spacecraft Pu power source thermal loading",
+          "4", "3", "High", ["Technical"], ["thermal", "TO12- Planet X EDL"]),
+    _item(5, "FPGA single-event upset susceptibility",
+          "3", "3", "Medium", ["Technical"], ["electrical", "software", "TO8- Software Dev"]),
+    _item(6, "Ground software test bed availability", "2", "4", "Medium", ["Schedule"],
+          ["software", "TO8- Software Dev"]),
+    _item(7, "Documentation backlog for closeout package",
+          "1", "2", "Low", ["Schedule"], ["software"]),
+    _item(8, "On-board storage margin below 20%", "2", "2", "Low", ["Technical"],
+          ["software", "WCC078"]),
+    _item(9, "Vibration test fixture rework", "3", "2", "Medium", ["Cost"],
+          ["mechanical", "TO6- WCC Pre-SRR"]),
+    _item(10, "Optical contamination during integration",
+          "4", "4", "High", ["Technical"], ["optics", "WCC100", "ESC033"]),
+    _item(11, "Unscored placeholder pending review",
+          None, None, "Low", [], ["software"]),
 ]
 
 
@@ -158,16 +228,16 @@ def _backdate_history(history_path: Path) -> None:
             "web_url": f"https://gitlab.example.com/stp/sub/-/work_items/{iid}",
         }
 
-    # #1 escalated 10 days ago: was C4xL3, now C5xL4
-    rows.append(row(60, 1, "Coating delamination under thermal cycling", 4, 3,
-                    risk_types=["Technical"], subsystems=["optics", "thermal"]))
-    rows.append(row(10, 1, "Coating delamination under thermal cycling", 5, 4,
-                    risk_types=["Technical"], subsystems=["optics", "thermal"]))
+    # #1 escalated 10 days ago: was C4xL2, now C5xL3
+    rows.append(row(60, 1, "Planetary contamination", 4, 2, priority="High",
+                    risk_types=["Technical"], subsystems=["mechanical", "thermal"]))
+    rows.append(row(10, 1, "Planetary contamination", 5, 3, priority="High",
+                    risk_types=["Technical"], subsystems=["mechanical", "thermal"]))
     # #4 de-escalated 5 days ago: was C5xL3, now C4xL3
-    rows.append(row(45, 4, "Pointing jitter exceeds budget", 5, 3, priority="Medium",
-                    risk_types=["Technical"], subsystems=["mechanical", "optics"]))
-    rows.append(row(5, 4, "Pointing jitter exceeds budget", 4, 3, priority="Medium",
-                    risk_types=["Technical"], subsystems=["mechanical", "optics"]))
+    rows.append(row(45, 4, "Pu thermal loading", 5, 3, priority="High",
+                    risk_types=["Technical"], subsystems=["thermal"]))
+    rows.append(row(5, 4, "Pu thermal loading", 4, 3, priority="High",
+                    risk_types=["Technical"], subsystems=["thermal"]))
     # #6 is new 3 days ago
     rows.append(row(3, 6, "Ground software test bed availability", 2, 4, priority="Medium",
                     risk_types=["Schedule"], subsystems=["software"]))
@@ -177,10 +247,10 @@ def _backdate_history(history_path: Path) -> None:
                     risk_types=["Cost"], subsystems=["electrical"]))
     rows.append(row(7, 99, "Retired vendor risk", 3, 3, state="closed", priority="Low",
                     risk_types=["Cost"], subsystems=["electrical"]))
-    # A second long history for trend variety
-    for d, c, l in [(80, 2, 2), (70, 3, 3), (40, 4, 4), (20, 4, 5)]:
-        rows.append(row(d, 2, "Detector ASIC vendor schedule slip", c, l,
-                        priority="High", risk_types=["Schedule", "Cost"], subsystems=["electrical"]))
+    # A second long history for trend variety on #2
+    for d, c, l in [(80, 2, 2), (70, 3, 3), (40, 4, 3), (20, 4, 4)]:
+        rows.append(row(d, 2, "Legacy software staffing", c, l, priority="High",
+                        risk_types=["Schedule", "Cost"], subsystems=["software"]))
 
     history_path.parent.mkdir(parents=True, exist_ok=True)
     with history_path.open("w") as f:
@@ -217,7 +287,7 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     assert "Consequence" in html and "Likelihood" in html
     # All sample issue titles end up in the rendered page (matrix cell lists
     # truncate to 28 chars, so match a stem).
-    assert "Coating delamination" in html
+    assert "Planetary contamination" in html
     # The unscored item must not land in any matrix cell, but may appear in
     # the "new" movement card. Check that #11 is absent from cells_json.
     cells_json = json.loads(html.split("const cells = ", 1)[1].split(";", 1)[0])
@@ -233,35 +303,36 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
 
     # Items with the labels we seeded must land in the right group bucket.
     item1 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "1")
-    assert "TO6- WCC Pre-SRR" in item1["label_groups"]["to"]
+    assert "TO12- Planet X EDL" in item1["label_groups"]["to"]
     assert "WCC100" in item1["label_groups"]["wcc"]
     assert item1["label_groups"]["esc"] == []
-    item4 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "4")
-    assert "ESC033" in item4["label_groups"]["esc"]
+    item10 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "10")
+    assert "ESC033" in item10["label_groups"]["esc"]
 
     # Filter UI: dropdown options for each label group must be present in the HTML.
-    for v in ("TO6- WCC Pre-SRR", "TO12- ESC PDR", "ESC033", "ESC046", "WCC078", "WCC100"):
+    for v in ("TO6- WCC Pre-SRR", "TO8- Software Dev", "TO12- Planet X EDL",
+              "ESC033", "WCC078", "WCC100"):
         assert v in html, f"expected filter option {v!r} not rendered"
 
     # Subsystem select is now multi-select.
     assert 'id="f-subsystem" multiple' in html
 
     # Risk# prefix gets stripped from #1's title.
-    assert item1["display_title"] == "Coating delamination under thermal cycling"
+    assert item1["display_title"] == "Planetary contamination from aerocapture breakup"
 
     # Risks table: must contain item #1 with rendered section HTML and the assignee.
     risks_json_str = html.split("const risks = ", 1)[1].split(";\nconst SECTION_META", 1)[0]
     risks_json = json.loads(risks_json_str)
     row1 = next(r for r in risks_json if r["iid"] == "1")
-    assert row1["assignees"] and row1["assignees"][0]["name"] == "Ada Lovelace"
+    assert row1["assignees"] and row1["assignees"][0]["name"] == "Sally Ride"
     rd = row1["sections"]["risk_description"]
-    assert "<strong>delaminate</strong>" in rd["html"], "markdown bold not rendered to HTML"
-    assert "Coating may" in rd["preview"]
+    assert "<strong>limited</strong>" in rd["html"], "markdown bold not rendered to HTML"
+    assert "atmosphere" in rd["preview"]
     ap = row1["sections"]["action_plan"]
     assert "<li>" in ap["html"], "markdown list not rendered to HTML"
-    assert row1["sections"]["risk_mitigation"]["full_text"].startswith("If margin remains")
+    assert row1["sections"]["risk_mitigation"]["full_text"].startswith("If shield margin")
     # Score is computed.
-    assert row1["score"] == 20
+    assert row1["score"] == 15
 
     # The table section is rendered with toolbar + export button.
     assert 'id="risks-table"' in html
