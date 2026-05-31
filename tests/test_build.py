@@ -293,26 +293,26 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     cells_json = json.loads(html.split("const cells = ", 1)[1].split(";", 1)[0])
     cell_iids = {issue["iid"] for cell in cells_json.values() for issue in cell}
     assert "11" not in cell_iids, "unscored item leaked into a matrix cell"
-    # Every cell item must carry a display_title and label_groups for the JS to render & filter.
+    # Every cell item must carry a display_title and products for the JS to render & filter.
     for cell in cells_json.values():
         for issue in cell:
             assert "display_title" in issue, "display_title missing from cells JSON"
-            assert "label_groups" in issue, "label_groups missing from cells JSON"
-            assert set(issue["label_groups"].keys()) == {k for k, _, _ in build.LABEL_GROUPS}, \
-                "label_groups keys don't match LABEL_GROUPS"
+            assert "products" in issue, "products missing from cells JSON"
 
-    # Items with the labels we seeded must land in the right group bucket.
+    # Items with the labels we seeded must land in the combined products list.
     item1 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "1")
-    assert "TO12- Planet X EDL" in item1["label_groups"]["to"]
-    assert "WCC100" in item1["label_groups"]["wcc"]
-    assert item1["label_groups"]["esc"] == []
+    assert "TO12- Planet X EDL" in item1["products"]
+    assert "WCC100" in item1["products"]
     item10 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "10")
-    assert "ESC033" in item10["label_groups"]["esc"]
+    assert "ESC033" in item10["products"]
 
-    # Filter UI: dropdown options for each label group must be present in the HTML.
+    # Filter UI: all product label values must appear in the single combined dropdown.
     for v in ("TO6- WCC Pre-SRR", "TO8- Software Dev", "TO12- Planet X EDL",
               "ESC033", "WCC078", "WCC100"):
         assert v in html, f"expected filter option {v!r} not rendered"
+    # Patterns string is rendered for the user.
+    for p in build.PRODUCT_PATTERNS:
+        assert p in html, f"product pattern {p!r} not displayed"
 
     # Subsystem select is now multi-select.
     assert 'id="f-subsystem" multiple' in html
