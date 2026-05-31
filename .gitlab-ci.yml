@@ -8,6 +8,14 @@ pages:
     - pip install --no-cache-dir -r requirements.txt
   script:
     - python build.py
+    - |
+      if [ -z "${PUSH_TOKEN}" ]; then
+        echo "ERROR: PUSH_TOKEN is empty or unset."
+        echo "  Settings -> CI/CD -> Variables: confirm PUSH_TOKEN exists with a value."
+        echo "  If 'Protected' is checked, the current branch must be a protected branch."
+        exit 1
+      fi
+      echo "PUSH_TOKEN length: ${#PUSH_TOKEN}"
     - git config user.email "risks-dashboard-bot@${CI_SERVER_HOST}"
     - git config user.name "risks-dashboard-bot"
     - git add data/history.ndjson
@@ -16,9 +24,17 @@ pages:
         echo "No history changes to commit."
       else
         git commit -m "snapshot: $(date -u +%F) [skip ci]"
-        git push -o ci.skip \
-          "https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
-          "HEAD:${CI_DEFAULT_BRANCH}"
+        PUSH_URL="https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+        if ! git push -o ci.skip "${PUSH_URL}" "HEAD:${CI_DEFAULT_BRANCH}" 2>push.err; then
+          echo "--- git push failed ---"
+          cat push.err
+          echo "Hints:"
+          echo "  * Token scope must include write_repository."
+          echo "  * Token's bot user must have Maintainer role on this project."
+          echo "  * Token must not be expired."
+          echo "  * '${CI_DEFAULT_BRANCH}' must allow Maintainers to push (Settings -> Repository -> Protected branches)."
+          exit 1
+        fi
       fi
   artifacts:
     paths:
