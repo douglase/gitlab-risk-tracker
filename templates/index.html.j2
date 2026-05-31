@@ -20,7 +20,11 @@
   .meta { color: var(--muted); margin-bottom: 1rem; }
   .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
   .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
-  .filters select, .filters input { padding: .25rem .5rem; font: inherit; }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; min-width: 140px; }
+  .filters select[multiple] { min-width: 160px; }
+  .filters .hint { font-size: 10px; color: #aaa; font-weight: normal; }
+  .filters button { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; align-self: end; }
+  .filters button:hover { background: #f5f5f5; }
   table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
   table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
   table.matrix th { background: white; font-weight: 600; text-align: center; }
@@ -60,9 +64,8 @@
 <div class="meta">Last updated: {{ generated_at }}</div>
 
 <div class="filters">
-  <label>Subsystem
-    <select id="f-subsystem">
-      <option value="">All</option>
+  <label>Subsystem <span class="hint">(⌘/Ctrl-click for multi)</span>
+    <select id="f-subsystem" multiple size="5">
       {% for s in subsystems %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
     </select>
   </label>
@@ -78,6 +81,16 @@
       {% for r in risk_types %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
     </select>
   </label>
+  {% for grp in label_groups_meta %}
+  {% if label_options[grp.key] %}
+  <label>{{ grp.label }} <span class="hint">(multi)</span>
+    <select id="f-{{ grp.key }}" data-group="{{ grp.key }}" multiple size="5">
+      {% for v in label_options[grp.key] %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  {% endfor %}
+  <button type="button" id="clear-filters">Clear filters</button>
   <span class="legend">
     <span class="low">low (1–4)</span>
     <span class="medium">medium (5–9)</span>
@@ -176,18 +189,36 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
+function getMulti(id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+const LABEL_GROUP_KEYS = Array.from(document.querySelectorAll('select[data-group]'))
+  .map(el => el.dataset.group);
+
 function currentFilter() {
-  return {
-    sub: document.getElementById('f-subsystem').value,
-    pri: document.getElementById('f-priority').value,
-    rt:  document.getElementById('f-risktype').value,
+  const f = {
+    subs: getMulti('f-subsystem'),
+    pri:  document.getElementById('f-priority').value,
+    rt:   document.getElementById('f-risktype').value,
+    groups: {},
   };
+  LABEL_GROUP_KEYS.forEach(k => { f.groups[k] = getMulti('f-' + k); });
+  return f;
 }
 
 function matchesFilter(item, f) {
-  if (f.sub && !(item.subsystems || []).includes(f.sub)) return false;
+  if (f.subs.length && !f.subs.some(s => (item.subsystems || []).includes(s))) return false;
   if (f.pri && item.priority !== f.pri) return false;
   if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
+  for (const k of LABEL_GROUP_KEYS) {
+    const selected = f.groups[k];
+    if (selected.length === 0) continue;
+    const itemVals = (item.label_groups && item.label_groups[k]) || [];
+    if (!selected.some(v => itemVals.includes(v))) return false;
+  }
   return true;
 }
 
@@ -263,9 +294,14 @@ function applyFilters() {
   renderDetail();
 }
 
-document.getElementById('f-subsystem').addEventListener('change', applyFilters);
-document.getElementById('f-priority').addEventListener('change', applyFilters);
-document.getElementById('f-risktype').addEventListener('change', applyFilters);
+document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
+document.getElementById('clear-filters').addEventListener('click', () => {
+  document.querySelectorAll('.filters select').forEach(el => {
+    Array.from(el.options).forEach(o => o.selected = false);
+    if (!el.multiple) el.value = '';
+  });
+  applyFilters();
+});
 applyFilters();
 drawTrend();
 </script>

@@ -40,6 +40,22 @@ RISK_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Label pattern groups for the filter UI. (key, regex, ui_label)
+LABEL_GROUPS: list[tuple[str, "re.Pattern[str]", str]] = [
+    ("to", re.compile(r"^TO\d", re.IGNORECASE), "Task (TO#)"),
+    ("esc", re.compile(r"^ESC", re.IGNORECASE), "ESC"),
+    ("wcc", re.compile(r"^WCC", re.IGNORECASE), "WCC"),
+]
+
+
+def group_labels(labels: list[str]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {key: [] for key, _, _ in LABEL_GROUPS}
+    for label in labels:
+        for key, pat, _ in LABEL_GROUPS:
+            if pat.match(label):
+                out[key].append(label)
+    return {k: sorted(v) for k, v in out.items()}
+
 
 def clean_title(title: str | None) -> str:
     if not title:
@@ -226,6 +242,7 @@ def normalize(item: dict) -> dict:
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
+    label_groups = group_labels(labels)
     return {
         "id": item["id"],
         "iid": item["iid"],
@@ -241,6 +258,7 @@ def normalize(item: dict) -> dict:
         "priority": select_value(cf_values, CF_PRIORITY),
         "risk_types": select_multi(cf_values, CF_RISK_TYPE),
         "subsystems": subsystems,
+        "label_groups": label_groups,
     }
 
 
@@ -451,12 +469,21 @@ def render(items: list[dict], history: list[dict]) -> None:
                 "subsystems": it["subsystems"],
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
+                "label_groups": it["label_groups"],
             }
             for it in matrix["cells"][(c, l)]
         ]
         for c in range(1, 6)
         for l in range(1, 6)
     }
+    label_options: dict[str, list[str]] = {key: set() for key, _, _ in LABEL_GROUPS}
+    for it in items:
+        if it["state"] == "closed":
+            continue
+        for key, vals in it["label_groups"].items():
+            label_options[key].update(vals)
+    label_options = {k: sorted(v) for k, v in label_options.items()}
+    label_groups_meta = [{"key": k, "label": lbl} for k, _, lbl in LABEL_GROUPS]
     html = tpl.render(
         group_path=GROUP_PATH,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -471,6 +498,8 @@ def render(items: list[dict], history: list[dict]) -> None:
         subsystem_counts=dict(subsystem_counts),
         priorities=["High", "Medium", "Low"],
         risk_types=["Technical", "Cost", "Schedule"],
+        label_groups_meta=label_groups_meta,
+        label_options=label_options,
     )
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     (PUBLIC_DIR / "index.html").write_text(html)
