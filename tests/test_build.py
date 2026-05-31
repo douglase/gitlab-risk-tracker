@@ -316,6 +316,9 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
 
     # Subsystem select is now multi-select.
     assert 'id="f-subsystem" multiple' in html
+    # Status filter present with Open default.
+    assert 'id="f-status"' in html
+    assert '<option value="open" selected>Open</option>' in html
 
     # Risk# prefix gets stripped from #1's title.
     assert item1["display_title"] == "Planetary contamination from aerocapture breakup"

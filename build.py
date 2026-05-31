@@ -550,8 +550,6 @@ def build_matrix(items: list[dict]) -> dict:
     cells: dict[tuple[int, int], list[dict]] = {(c, l): [] for c in range(1, 6) for l in range(1, 6)}
     unscored: list[dict] = []
     for it in items:
-        if it["state"] == "closed":
-            continue
         c, l = it["consequence"], it["likelihood"]
         if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
             unscored.append(it)
@@ -583,6 +581,7 @@ def render(items: list[dict], history: list[dict]) -> None:
                 "title": it["title"],
                 "display_title": it["display_title"],
                 "web_url": it["web_url"],
+                "state": it["state"],
                 "subsystems": it["subsystems"],
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
@@ -606,8 +605,6 @@ def render(items: list[dict], history: list[dict]) -> None:
     ]
     risks_table: list[dict] = []
     for it in items:
-        if it["state"] == "closed":
-            continue
         c, l = it["consequence"], it["likelihood"]
         if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
             continue
@@ -620,6 +617,7 @@ def render(items: list[dict], history: list[dict]) -> None:
             "title": it["title"],
             "display_title": it["display_title"],
             "web_url": it["web_url"],
+            "state": it["state"],
             "consequence": c,
             "likelihood": l,
             "score": c * l,
