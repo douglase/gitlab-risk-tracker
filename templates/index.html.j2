@@ -103,13 +103,8 @@
       {% set issues = matrix.cells[(c, l)] %}
       {% set tier = severity_tier(c, l) %}
       <td class="{{ tier }}" data-cell="{{ c }}-{{ l }}" onclick="selectCell('{{ c }}-{{ l }}')">
-        <div class="count">{{ issues | length }}</div>
-        <ul>
-        {% for it in issues[:4] %}
-          <li><a href="{{ it.web_url }}" target="_blank">#{{ it.iid }}</a> {{ it.title | truncate(28) }}</li>
-        {% endfor %}
-        {% if issues | length > 4 %}<li>… +{{ issues | length - 4 }} more</li>{% endif %}
-        </ul>
+        <div class="count">0</div>
+        <ul></ul>
       </td>
     {% endfor %}
   </tr>
@@ -142,7 +137,7 @@
     </div>
     <div class="card">
       <h3>✚ New ({{ movement.new | length }})</h3>
-      <ul>{% for r in movement.new[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a> {{ r.title | truncate(40) }}</li>{% endfor %}</ul>
+      <ul>{% for r in movement.new[:10] %}<li><a href="{{ r.web_url }}" target="_blank">{{ r.title | clean_title | truncate(45) }}</a></li>{% endfor %}</ul>
     </div>
     <div class="card">
       <h3>✔ Closed ({{ movement.closed | length }})</h3>
@@ -168,17 +163,56 @@
 const cells = {{ cells_json | safe }};
 const trends = {{ trends | tojson }};
 
+const MAX_TITLE_CHARS = 38;
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function currentFilter() {
+  return {
+    sub: document.getElementById('f-subsystem').value,
+    pri: document.getElementById('f-priority').value,
+    rt:  document.getElementById('f-risktype').value,
+  };
+}
+
+function matchesFilter(item, f) {
+  if (f.sub && !(item.subsystems || []).includes(f.sub)) return false;
+  if (f.pri && item.priority !== f.pri) return false;
+  if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
+  return true;
+}
+
+let selectedKey = null;
+
 function selectCell(key) {
+  selectedKey = key;
   document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
   const td = document.querySelector(`td[data-cell="${key}"]`);
   if (td) td.classList.add('selected');
-  const issues = cells[key] || [];
-  const [c, l] = key.split('-');
-  document.getElementById('detail-label').textContent = `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
+  renderDetail();
+}
+
+function renderDetail() {
+  if (!selectedKey) return;
+  const f = currentFilter();
+  const issues = (cells[selectedKey] || []).filter(i => matchesFilter(i, f));
+  const [c, l] = selectedKey.split('-');
+  document.getElementById('detail-label').textContent =
+    `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
   const body = document.getElementById('detail-body');
   body.innerHTML = issues.map(i =>
-    `<tr><td><a href="${i.web_url}" target="_blank">#${i.iid}</a></td><td>${i.title}</td></tr>`
-  ).join('') || '<tr><td colspan="2" style="color:#999">No issues in this cell</td></tr>';
+    `<tr><td><a href="${i.web_url}" target="_blank">#${escapeHtml(i.iid)}</a></td>` +
+    `<td>${escapeHtml(i.display_title || i.title)}</td></tr>`
+  ).join('') || '<tr><td colspan="2" style="color:#999">No issues match the current filter</td></tr>';
   document.getElementById('detail-section').classList.remove('hidden');
 }
 
@@ -213,26 +247,26 @@ function drawTrend() {
 }
 
 function applyFilters() {
-  const sub = document.getElementById('f-subsystem').value;
-  const pri = document.getElementById('f-priority').value;
-  const rt  = document.getElementById('f-risktype').value;
+  const f = currentFilter();
   document.querySelectorAll('table.matrix td[data-cell]').forEach(td => {
     const key = td.dataset.cell;
     const all = cells[key] || [];
-    const filtered = all.filter(i => {
-      if (sub && !(i.subsystems || []).includes(sub)) return false;
-      if (pri && i.priority !== pri) return false;
-      if (rt && !(i.risk_types || []).includes(rt)) return false;
-      return true;
-    });
-    const count = td.querySelector('.count');
-    if (count) count.textContent = filtered.length;
+    const filtered = all.filter(i => matchesFilter(i, f));
+    td.querySelector('.count').textContent = filtered.length;
+    const head = filtered.slice(0, 4).map(i => {
+      const title = i.display_title || i.title || '';
+      return `<li><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+    }).join('');
+    const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
+    td.querySelector('ul').innerHTML = head + tail;
   });
+  renderDetail();
 }
 
 document.getElementById('f-subsystem').addEventListener('change', applyFilters);
 document.getElementById('f-priority').addEventListener('change', applyFilters);
 document.getElementById('f-risktype').addEventListener('change', applyFilters);
+applyFilters();
 drawTrend();
 </script>
 
