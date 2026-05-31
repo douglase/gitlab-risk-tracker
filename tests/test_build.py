@@ -188,6 +188,10 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     cells_json = json.loads(html.split("const cells = ", 1)[1].split(";", 1)[0])
     cell_iids = {issue["iid"] for cell in cells_json.values() for issue in cell}
     assert "11" not in cell_iids, "unscored item leaked into a matrix cell"
+    # Every cell item must carry a display_title for the JS to render.
+    for cell in cells_json.values():
+        for issue in cell:
+            assert "display_title" in issue, "display_title missing from cells JSON"
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
@@ -243,6 +247,24 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     print(f"History rows: {sum(1 for _ in history_path.open())}")
 
 
+def test_clean_title() -> None:
+    cases = [
+        ("Risk# WCC100 - NSV mount drift", "NSV mount drift"),
+        ("RISK# ESC046 ARB 350 thermal limit", "ARB 350 thermal limit"),
+        ("Risk#ESC033: DM Cable harness", "DM Cable harness"),
+        ("Risk#WCC078: Tool obsolescence", "Tool obsolescence"),
+        ("Coating delamination under thermal cycling", "Coating delamination under thermal cycling"),
+        ("  risk # ABC123 — Detail", "Detail"),
+        ("Risk#XYZ999", "Risk#XYZ999"),  # nothing after the prefix -> fall back to original
+        ("", ""),
+        (None, ""),
+    ]
+    for raw, expected in cases:
+        got = build.clean_title(raw)
+        assert got == expected, f"clean_title({raw!r}) -> {got!r}, expected {expected!r}"
+
+
 if __name__ == "__main__":
+    test_clean_title()
     test_build_dashboard()
     print("OK")
