@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -33,6 +34,18 @@ CF_PRIORITY = "Priority Level"
 CF_RISK_TYPE = "Risk Type"
 
 PAGE_SIZE = 100
+
+RISK_PREFIX_RE = re.compile(
+    r"^\s*risk\s*#\s*[A-Z0-9]+\s*[:\-–—]?\s*",
+    re.IGNORECASE,
+)
+
+
+def clean_title(title: str | None) -> str:
+    if not title:
+        return ""
+    stripped = RISK_PREFIX_RE.sub("", title).strip()
+    return stripped or title.strip()
 
 
 def gitlab_url() -> str:
@@ -217,6 +230,7 @@ def normalize(item: dict) -> dict:
         "id": item["id"],
         "iid": item["iid"],
         "title": item["title"],
+        "display_title": clean_title(item["title"]),
         "state": item["state"].lower(),
         "web_url": item["webUrl"],
         "created_at": item.get("createdAt"),
@@ -418,6 +432,7 @@ def render(items: list[dict], history: list[dict]) -> None:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["clean_title"] = clean_title
     tpl = env.get_template("index.html.j2")
     matrix = build_matrix(items)
     subsystem_counts = Counter()
@@ -431,6 +446,7 @@ def render(items: list[dict], history: list[dict]) -> None:
             {
                 "iid": it["iid"],
                 "title": it["title"],
+                "display_title": it["display_title"],
                 "web_url": it["web_url"],
                 "subsystems": it["subsystems"],
                 "priority": it["priority"],
