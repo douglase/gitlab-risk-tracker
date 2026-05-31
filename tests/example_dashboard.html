@@ -37,6 +37,7 @@
   td .count { font-weight: 700; font-size: 1.2rem; }
   td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
   td ul li a { color: #1565c0; text-decoration: none; }
+  td ul li.closed a { color: var(--muted); text-decoration: line-through; }
   td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
   .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
   .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
@@ -51,7 +52,10 @@
   .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
   .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
   .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
-  .bar .label { width: 110px; font-size: 12px; color: var(--muted); }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .bar a.label:hover { color: #1565c0; text-decoration: underline; }
+  table.risks td a.tag { text-decoration: none; cursor: pointer; }
+  table.risks td a.tag:hover { filter: brightness(0.95); text-decoration: underline; }
   .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
   .bar .n { font-size: 12px; color: var(--muted); }
   .trend { width: 100%; height: 200px; }
@@ -95,7 +99,7 @@
 <body>
 
 <h1>Risk Dashboard — stp</h1>
-<div class="meta">Last updated: 2026-05-31 07:06 UTC</div>
+<div class="meta">Last updated: 2026-05-31 07:16 UTC</div>
 
 <div class="filters">
   <label>Subsystem <span class="hint">(⌘/Ctrl-click for multi)</span>
@@ -296,27 +300,27 @@
 <section>
   <h2>Subsystem breakdown (label occurrences)</h2>
     <div class="bar">
-      <span class="label">optics</span>
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=optics" target="_blank" title="Search issues with this label">optics</a>
       <div class="fill" style="width: 50.0px;"></div>
       <span class="n">1</span>
     </div>
     <div class="bar">
-      <span class="label">thermal</span>
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=thermal" target="_blank" title="Search issues with this label">thermal</a>
       <div class="fill" style="width: 150.0px;"></div>
       <span class="n">3</span>
     </div>
     <div class="bar">
-      <span class="label">software</span>
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=software" target="_blank" title="Search issues with this label">software</a>
       <div class="fill" style="width: 300.0px;"></div>
       <span class="n">6</span>
     </div>
     <div class="bar">
-      <span class="label">mechanical</span>
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=mechanical" target="_blank" title="Search issues with this label">mechanical</a>
       <div class="fill" style="width: 150.0px;"></div>
       <span class="n">3</span>
     </div>
     <div class="bar">
-      <span class="label">electrical</span>
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=electrical" target="_blank" title="Search issues with this label">electrical</a>
       <div class="fill" style="width: 50.0px;"></div>
       <span class="n">1</span>
     </div>
@@ -351,6 +355,13 @@ const cells = {"1-1": [], "1-2": [{"iid": "7", "title": "Documentation backlog f
 const trends = {"labels": ["2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-21", "2026-03-22", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-28", "2026-03-29", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05", "2026-04-06", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-11", "2026-04-12", "2026-04-13", "2026-04-14", "2026-04-15", "2026-04-16", "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"], "series": {"critical": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], "high": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3], "low": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2], "medium": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 3]}};
 const risks = [{"iid": "2", "title": "Risk# 8 Staffing for legacy software", "display_title": "Staffing for legacy software", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "state": "open", "consequence": 4, "likelihood": 4, "score": 16, "priority": "High", "risk_types": ["Schedule", "Cost"], "subsystems": ["software"], "products": ["TO8- Software Dev", "WCC078"], "other_labels": [], "assignees": [{"name": "Mae Jemison", "username": "mjemison", "web_url": "https://gitlab.example.com/mjemison"}], "sections": {"risk_description": {"html": "<p>Given that the decision has been made to adapt legacy software for this mission and the<br>\nAgency projects a scarcity of qualified programmers familiar with the legacy language,<br>\nthere is a possibility that there may be <strong>insufficient staffing at the high labor<br>\ncategories</strong> adversely impacting the control software, which could result in delays in<br>\nthe delivery of the software and/or software reliability issues.</p>", "preview": "Given that the decision has been made to adapt legacy software for this mission and the Agency projects a scarcity of qualified programmers familiar with the legacy language, there is a possibility that there may be insufficient staffing at the high labor categories adversely imp\u2026", "full_text": "Given that the decision has been made to adapt legacy software for this mission and the Agency projects a scarcity of qualified programmers familiar with the legacy language, there is a possibility that there may be insufficient staffing at the high labor categories adversely impacting the control software, which could result in delays in the delivery of the software and/or software reliability issues.", "has_more": true}, "action_plan": {"html": "<ul>\n<li>Survey current legacy-language staff for retirement intent within the next 24 months.</li>\n<li>Begin knowledge-capture sprints with senior engineers.</li>\n<li>Open requisitions for two senior engineers familiar with the legacy stack.</li>\n</ul>", "preview": "Survey current legacy-language staff for retirement intent within the next 24 months. Begin knowledge-capture sprints with senior engineers. Open requisitions for two senior engineers familiar with the legacy stack.", "full_text": "Survey current legacy-language staff for retirement intent within the next 24 months. Begin knowledge-capture sprints with senior engineers. Open requisitions for two senior engineers familiar with the legacy stack.", "has_more": false}, "risk_mitigation": {"html": "<p>If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting<br>\neffort to the modern language and accept an ~9-month schedule slip.</p>\n<p><em>Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.</em></p>", "preview": "If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting effort to the modern language and accept an ~9-month schedule slip. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.", "full_text": "If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting effort to the modern language and accept an ~9-month schedule slip. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.", "has_more": false}}}, {"iid": "10", "title": "Optical contamination during integration", "display_title": "Optical contamination during integration", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "state": "open", "consequence": 4, "likelihood": 4, "score": 16, "priority": "High", "risk_types": ["Technical"], "subsystems": ["optics"], "products": ["ESC033", "WCC100"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "1", "title": "Risk# 1A Planetary contamination from aerocapture breakup", "display_title": "Planetary contamination from aerocapture breakup", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "state": "open", "consequence": 5, "likelihood": 3, "score": 15, "priority": "High", "risk_types": ["Technical"], "subsystems": ["mechanical", "thermal"], "products": ["TO12- Planet X EDL", "WCC100"], "other_labels": [], "assignees": [{"name": "Sally Ride", "username": "sride", "web_url": "https://gitlab.example.com/sride"}], "sections": {"risk_description": {"html": "<p>Given that the state of knowledge of Planet X's atmosphere is <strong>limited</strong>, that it is<br>\ndifficult to ascertain more information about Planet X's atmosphere from Earth, and that<br>\nthe spacecraft contains radioactive material, there is a possibility of unanticipated<br>\natmospheric characteristics during the aerocapture maneuver at Planet X leading to a<br>\nless-than-optimal trajectory adversely impacting the spacecraft, thereby resulting in<br>\nspacecraft breakup and radioactive contamination of Planet X.</p>", "preview": "Given that the state of knowledge of Planet X's atmosphere is limited, that it is difficult to ascertain more information about Planet X's atmosphere from Earth, and that the spacecraft contains radioactive material, there is a possibility of unanticipated atmospheric characteris\u2026", "full_text": "Given that the state of knowledge of Planet X's atmosphere is limited, that it is difficult to ascertain more information about Planet X's atmosphere from Earth, and that the spacecraft contains radioactive material, there is a possibility of unanticipated atmospheric characteristics during the aerocapture maneuver at Planet X leading to a less-than-optimal trajectory adversely impacting the spacecraft, thereby resulting in spacecraft breakup and radioactive contamination of Planet X.", "has_more": true}, "action_plan": {"html": "<ul>\n<li>Refine atmospheric uncertainty model with the latest flyby data.</li>\n<li>Add margin to heat-shield ablation analysis for upper-bound density.</li>\n<li>Coordinate with the planetary protection office on contamination scenarios.</li>\n</ul>", "preview": "Refine atmospheric uncertainty model with the latest flyby data. Add margin to heat-shield ablation analysis for upper-bound density. Coordinate with the planetary protection office on contamination scenarios.", "full_text": "Refine atmospheric uncertainty model with the latest flyby data. Add margin to heat-shield ablation analysis for upper-bound density. Coordinate with the planetary protection office on contamination scenarios.", "has_more": false}, "risk_mitigation": {"html": "<p>If shield margin remains below 30% after the refined analysis, expand the aerocapture<br>\ncorridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact<br>\n~6 months; cost impact ~$45M.</p>\n<p><em>Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(a).</em></p>", "preview": "If shield margin remains below 30% after the refined analysis, expand the aerocapture corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact ~6 months; cost impact ~$45M. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(\u2026", "full_text": "If shield margin remains below 30% after the refined analysis, expand the aerocapture corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact ~6 months; cost impact ~$45M. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(a).", "has_more": true}}}, {"iid": "4", "title": "Spacecraft Pu power source thermal loading", "display_title": "Spacecraft Pu power source thermal loading", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "state": "open", "consequence": 4, "likelihood": 3, "score": 12, "priority": "High", "risk_types": ["Technical"], "subsystems": ["thermal"], "products": ["TO12- Planet X EDL"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "3", "title": "Cryocooler procurement long lead", "display_title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "state": "open", "consequence": 5, "likelihood": 2, "score": 10, "priority": "High", "risk_types": ["Cost", "Schedule"], "subsystems": ["mechanical", "thermal"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "5", "title": "FPGA single-event upset susceptibility", "display_title": "FPGA single-event upset susceptibility", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "state": "open", "consequence": 3, "likelihood": 3, "score": 9, "priority": "Medium", "risk_types": ["Technical"], "subsystems": ["electrical", "software"], "products": ["TO8- Software Dev"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "6", "title": "Ground software test bed availability", "display_title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "state": "open", "consequence": 2, "likelihood": 4, "score": 8, "priority": "Medium", "risk_types": ["Schedule"], "subsystems": ["software"], "products": ["TO8- Software Dev"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "9", "title": "Vibration test fixture rework", "display_title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "state": "open", "consequence": 3, "likelihood": 2, "score": 6, "priority": "Medium", "risk_types": ["Cost"], "subsystems": ["mechanical"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "8", "title": "On-board storage margin below 20%", "display_title": "On-board storage margin below 20%", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "state": "open", "consequence": 2, "likelihood": 2, "score": 4, "priority": "Low", "risk_types": ["Technical"], "subsystems": ["software"], "products": ["WCC078"], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "7", "title": "Documentation backlog for closeout package", "display_title": "Documentation backlog for closeout package", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "state": "open", "consequence": 1, "likelihood": 2, "score": 2, "priority": "Low", "risk_types": ["Schedule"], "subsystems": ["software"], "products": [], "other_labels": [], "assignees": [], "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "action_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}, "risk_mitigation": {"html": "", "preview": "", "full_text": "", "has_more": false}}}];
 const SECTION_META = [{"header": "Risk Description", "key": "risk_description", "slug": "risk-description"}, {"header": "Action Plan / Notes", "key": "action_plan", "slug": "action-plan-notes"}, {"header": "Risk Mitigation Planning", "key": "risk_mitigation", "slug": "risk-mitigation-planning"}];
+const SERVER_URL = "https://gitlab.example.com";
+const GROUP_PATH = "stp";
+
+function labelUrl(label) {
+  if (!SERVER_URL) return '#';
+  return `${SERVER_URL}/groups/${encodeURIComponent(GROUP_PATH)}/-/issues?label_name%5B%5D=${encodeURIComponent(label)}`;
+}
 
 const MAX_TITLE_CHARS = 38;
 
@@ -456,7 +467,8 @@ function applyFilters() {
     td.querySelector('.count').textContent = filtered.length;
     const head = filtered.slice(0, 4).map(i => {
       const title = i.display_title || i.title || '';
-      return `<li><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+      const cls = i.state === 'closed' ? ' class="closed"' : '';
+      return `<li${cls}><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
     }).join('');
     const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
     td.querySelector('ul').innerHTML = head + tail;
@@ -476,10 +488,11 @@ const COLUMNS = [
   { key: 'score',         header: 'Score',      kind: 'num' },
   { key: 'priority',      header: 'Priority',   kind: 'text' },
   { key: 'risk_types',    header: 'Risk Type',  kind: 'tags' },
-  { key: 'subsystems',    header: 'Subsystems', kind: 'tags-subsystem' },
+  { key: 'subsystems',    header: 'Subsystems', kind: 'labels-subsystem' },
+  { key: 'products',      header: 'Product',    kind: 'labels-product' },
   { key: 'assignees',     header: 'Owner',      kind: 'assignees' },
   ...SECTION_META.map(s => ({ key: s.key, header: s.header, kind: 'section' })),
-  { key: 'other_labels',  header: 'Other labels', kind: 'tags-other' },
+  { key: 'other_labels',  header: 'Other labels', kind: 'labels-other' },
 ];
 
 const COL_STATE_KEY = 'risks-cols-v1';
@@ -538,7 +551,7 @@ function renderThead() {
 function sortValue(row, col) {
   if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
   if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
-  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
     return (row[col.key] || []).join(', ');
   }
   return row[col.key] != null ? row[col.key] : '';
@@ -566,12 +579,16 @@ function renderCell(row, col) {
     case 'num':
       return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
     case 'tags':
-    case 'tags-subsystem':
-    case 'tags-other': {
-      const cls = col.kind === 'tags-subsystem' ? 'tag subsystem'
-                : col.kind === 'tags-other'     ? 'tag other'
+      return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
+    case 'labels-subsystem':
+    case 'labels-product':
+    case 'labels-other': {
+      const cls = col.kind === 'labels-subsystem' ? 'tag subsystem'
+                : col.kind === 'labels-other'     ? 'tag other'
                 : 'tag';
-      return `<td>${(row[col.key] || []).map(t => `<span class="${cls}">${escapeHtml(t)}</span>`).join('')}</td>`;
+      return `<td>${(row[col.key] || []).map(t =>
+        `<a class="${cls}" href="${labelUrl(t)}" target="_blank" title="Search issues with this label">${escapeHtml(t)}</a>`
+      ).join('')}</td>`;
     }
     case 'assignees':
       return `<td>${(row.assignees || []).map(a =>
@@ -641,7 +658,7 @@ function csvCell(s) {
 function csvValue(row, col) {
   if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
   if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
-  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
     return (row[col.key] || []).join(', ');
   }
   if (col.kind === 'link') return `#${row.iid}`;
