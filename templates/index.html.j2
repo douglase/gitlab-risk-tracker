@@ -74,6 +74,10 @@
   table.risks td.markdown { max-width: 320px; }
   table.risks td.markdown .preview { white-space: pre-wrap; word-wrap: break-word; }
   table.risks td .see-more { color: #1565c0; cursor: pointer; font-size: 11px; margin-left: .25rem; }
+  table.risks td .edit-link { color: var(--muted); text-decoration: none; font-size: 12px; margin-left: .35rem; opacity: .55; }
+  table.risks td .edit-link:hover { opacity: 1; color: #1565c0; }
+  .modal-content h2 .edit-link { font-size: 14px; color: var(--muted); text-decoration: none; margin-left: .5rem; }
+  .modal-content h2 .edit-link:hover { color: #1565c0; }
   table.risks td .tag { display: inline-block; padding: 1px 6px; background: #e3f2fd; color: #0d47a1; border-radius: 10px; font-size: 11px; margin: 1px 1px 1px 0; }
   table.risks td .tag.subsystem { background: #f3e5f5; color: #4a148c; }
   table.risks td .tag.other { background: #eceff1; color: #455a64; }
@@ -471,7 +475,11 @@ function renderCell(row, col) {
       const more = sec.has_more
         ? ` <a class="see-more" data-iid="${escapeHtml(row.iid)}" data-key="${col.key}">see more</a>`
         : '';
-      return `<td class="markdown"><div class="preview">${preview}</div>${more}</td>`;
+      const meta = SECTION_META.find(s => s.key === col.key);
+      const slug = meta ? meta.slug : '';
+      const editUrl = slug ? `${row.web_url}#${slug}` : row.web_url;
+      const edit = `<a class="edit-link" href="${editUrl}" target="_blank" title="Edit in GitLab">✎</a>`;
+      return `<td class="markdown"><div class="preview">${preview}</div>${more}${edit}</td>`;
     }
     case 'text':
     default:
@@ -498,8 +506,11 @@ function openSection(iid, key) {
   if (!row) return;
   const sec = (row.sections || {})[key] || {};
   const col = COLUMNS.find(c => c.key === key);
+  const meta = SECTION_META.find(s => s.key === key);
+  const editUrl = meta && meta.slug ? `${row.web_url}#${meta.slug}` : row.web_url;
   document.getElementById('modal-body').innerHTML =
-    `<h2>${escapeHtml(col.header)} — <a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a></h2>`
+    `<h2>${escapeHtml(col.header)} — <a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a>`
+    + ` <a class="edit-link" href="${editUrl}" target="_blank" title="Edit in GitLab">✎ edit</a></h2>`
     + (sec.html || '<em>(empty)</em>');
   document.getElementById('modal').classList.remove('hidden');
 }

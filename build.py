@@ -139,6 +139,15 @@ def render_section(md_text: str | None) -> dict:
     return {"html": html, "preview": preview, "full_text": full, "has_more": has_more}
 
 
+_SLUG_NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _slugify(s: str) -> str:
+    """Match GitLab's heading-id slug for a header text (lowercase,
+    non-alphanumerics collapsed to dashes, stripped)."""
+    return _SLUG_NON_ALNUM.sub("-", s).strip("-").lower()
+
+
 def clean_title(title: str | None) -> str:
     if not title:
         return ""
@@ -597,7 +606,7 @@ def render(items: list[dict], history: list[dict]) -> None:
     label_groups_meta = [{"key": k, "label": lbl} for k, _, lbl in LABEL_GROUPS]
 
     section_meta = [
-        {"key": key, "header": header}
+        {"key": key, "header": header, "slug": _slugify(header)}
         for key, header, _ in CANONICAL_SECTIONS
     ]
     risks_table: list[dict] = []
