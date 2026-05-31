@@ -24,7 +24,7 @@ pages:
         echo "No history changes to commit."
       else
         git commit -m "snapshot: $(date -u +%F) [skip ci]"
-        PUSH_URL="https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+        PUSH_URL="https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}.git"
         if ! git push -o ci.skip "${PUSH_URL}" "HEAD:${CI_DEFAULT_BRANCH}" 2>push.err; then
           echo "--- git push failed ---"
           cat push.err
