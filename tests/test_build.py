@@ -85,16 +85,16 @@ def _item(
 
 
 SAMPLE_ITEMS = [
-    _item(1, "Coating delamination under thermal cycling", "5", "4", "High", ["Technical"], ["optics", "thermal"]),
-    _item(2, "Detector ASIC vendor schedule slip", "4", "5", "High", ["Schedule", "Cost"], ["electrical"]),
-    _item(3, "Cryocooler procurement long lead", "5", "3", "High", ["Cost", "Schedule"], ["thermal", "mechanical"]),
-    _item(4, "Pointing jitter exceeds budget", "4", "3", "Medium", ["Technical"], ["mechanical", "optics"]),
+    _item(1, "Risk# WCC100 Coating delamination under thermal cycling", "5", "4", "High", ["Technical"], ["optics", "thermal", "TO6- WCC Pre-SRR", "WCC100"]),
+    _item(2, "Detector ASIC vendor schedule slip", "4", "5", "High", ["Schedule", "Cost"], ["electrical", "TO12- ESC PDR", "ESC046"]),
+    _item(3, "Cryocooler procurement long lead", "5", "3", "High", ["Cost", "Schedule"], ["thermal", "mechanical", "TO6- WCC Pre-SRR"]),
+    _item(4, "Pointing jitter exceeds budget", "4", "3", "Medium", ["Technical"], ["mechanical", "optics", "ESC033"]),
     _item(5, "FPGA firmware tool obsolescence", "3", "3", "Medium", ["Technical"], ["electrical", "software"]),
-    _item(6, "Ground software test bed availability", "2", "4", "Medium", ["Schedule"], ["software"]),
+    _item(6, "Ground software test bed availability", "2", "4", "Medium", ["Schedule"], ["software", "TO12- ESC PDR"]),
     _item(7, "Documentation backlog", "1", "2", "Low", ["Schedule"], ["software"]),
-    _item(8, "Storage capacity margin", "2", "2", "Low", ["Technical"], ["software"]),
+    _item(8, "Storage capacity margin", "2", "2", "Low", ["Technical"], ["software", "WCC078"]),
     _item(9, "Vibration test fixture rework", "3", "2", "Medium", ["Cost"], ["mechanical"]),
-    _item(10, "Optical contamination control", "4", "4", "High", ["Technical"], ["optics"]),
+    _item(10, "Optical contamination control", "4", "4", "High", ["Technical"], ["optics", "WCC100"]),
     _item(11, "Unscored placeholder risk", None, None, "Low", [], ["software"]),
 ]
 
@@ -188,10 +188,31 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     cells_json = json.loads(html.split("const cells = ", 1)[1].split(";", 1)[0])
     cell_iids = {issue["iid"] for cell in cells_json.values() for issue in cell}
     assert "11" not in cell_iids, "unscored item leaked into a matrix cell"
-    # Every cell item must carry a display_title for the JS to render.
+    # Every cell item must carry a display_title and label_groups for the JS to render & filter.
     for cell in cells_json.values():
         for issue in cell:
             assert "display_title" in issue, "display_title missing from cells JSON"
+            assert "label_groups" in issue, "label_groups missing from cells JSON"
+            assert set(issue["label_groups"].keys()) == {k for k, _, _ in build.LABEL_GROUPS}, \
+                "label_groups keys don't match LABEL_GROUPS"
+
+    # Items with the labels we seeded must land in the right group bucket.
+    item1 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "1")
+    assert "TO6- WCC Pre-SRR" in item1["label_groups"]["to"]
+    assert "WCC100" in item1["label_groups"]["wcc"]
+    assert item1["label_groups"]["esc"] == []
+    item4 = next(i for cell in cells_json.values() for i in cell if i["iid"] == "4")
+    assert "ESC033" in item4["label_groups"]["esc"]
+
+    # Filter UI: dropdown options for each label group must be present in the HTML.
+    for v in ("TO6- WCC Pre-SRR", "TO12- ESC PDR", "ESC033", "ESC046", "WCC078", "WCC100"):
+        assert v in html, f"expected filter option {v!r} not rendered"
+
+    # Subsystem select is now multi-select.
+    assert 'id="f-subsystem" multiple' in html
+
+    # Risk# prefix gets stripped from #1's title.
+    assert item1["display_title"] == "Coating delamination under thermal cycling"
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
