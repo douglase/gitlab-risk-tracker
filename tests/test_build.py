@@ -259,6 +259,7 @@ def _backdate_history(history_path: Path) -> None:
 
 
 def _run_main_with_items(items: list[dict]) -> None:
+    os.environ.setdefault("CI_SERVER_URL", "https://gitlab.example.com")
     with patch.object(build, "schema_check", lambda: None), \
          patch.object(build, "fetch_work_items", lambda: items):
         build.main()

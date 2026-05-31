@@ -37,6 +37,7 @@
   td .count { font-weight: 700; font-size: 1.2rem; }
   td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
   td ul li a { color: #1565c0; text-decoration: none; }
+  td ul li.closed a { color: var(--muted); text-decoration: line-through; }
   td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
   .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
   .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
@@ -51,7 +52,10 @@
   .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
   .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
   .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
-  .bar .label { width: 110px; font-size: 12px; color: var(--muted); }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .bar a.label:hover { color: #1565c0; text-decoration: underline; }
+  table.risks td a.tag { text-decoration: none; cursor: pointer; }
+  table.risks td a.tag:hover { filter: brightness(0.95); text-decoration: underline; }
   .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
   .bar .n { font-size: 12px; color: var(--muted); }
   .trend { width: 100%; height: 200px; }
@@ -204,7 +208,11 @@
   {% for s in subsystems %}
     {% set n = subsystem_counts.get(s, 0) %}
     <div class="bar">
+      {% if server_url %}
+      <a class="label" href="{{ server_url }}/groups/{{ group_path | urlencode }}/-/issues?label_name%5B%5D={{ s | urlencode }}" target="_blank" title="Search issues with this label">{{ s }}</a>
+      {% else %}
       <span class="label">{{ s }}</span>
+      {% endif %}
       <div class="fill" style="width: {{ (n / max_count * 300) | round }}px;"></div>
       <span class="n">{{ n }}</span>
     </div>
@@ -240,6 +248,13 @@ const cells = {{ cells_json | safe }};
 const trends = {{ trends | tojson }};
 const risks = {{ risks_table_json | safe }};
 const SECTION_META = {{ section_meta | tojson }};
+const SERVER_URL = {{ server_url | tojson }};
+const GROUP_PATH = {{ group_path | tojson }};
+
+function labelUrl(label) {
+  if (!SERVER_URL) return '#';
+  return `${SERVER_URL}/groups/${encodeURIComponent(GROUP_PATH)}/-/issues?label_name%5B%5D=${encodeURIComponent(label)}`;
+}
 
 const MAX_TITLE_CHARS = 38;
 
@@ -345,7 +360,8 @@ function applyFilters() {
     td.querySelector('.count').textContent = filtered.length;
     const head = filtered.slice(0, 4).map(i => {
       const title = i.display_title || i.title || '';
-      return `<li><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+      const cls = i.state === 'closed' ? ' class="closed"' : '';
+      return `<li${cls}><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
     }).join('');
     const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
     td.querySelector('ul').innerHTML = head + tail;
@@ -365,10 +381,11 @@ const COLUMNS = [
   { key: 'score',         header: 'Score',      kind: 'num' },
   { key: 'priority',      header: 'Priority',   kind: 'text' },
   { key: 'risk_types',    header: 'Risk Type',  kind: 'tags' },
-  { key: 'subsystems',    header: 'Subsystems', kind: 'tags-subsystem' },
+  { key: 'subsystems',    header: 'Subsystems', kind: 'labels-subsystem' },
+  { key: 'products',      header: 'Product',    kind: 'labels-product' },
   { key: 'assignees',     header: 'Owner',      kind: 'assignees' },
   ...SECTION_META.map(s => ({ key: s.key, header: s.header, kind: 'section' })),
-  { key: 'other_labels',  header: 'Other labels', kind: 'tags-other' },
+  { key: 'other_labels',  header: 'Other labels', kind: 'labels-other' },
 ];
 
 const COL_STATE_KEY = 'risks-cols-v1';
@@ -427,7 +444,7 @@ function renderThead() {
 function sortValue(row, col) {
   if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
   if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
-  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
     return (row[col.key] || []).join(', ');
   }
   return row[col.key] != null ? row[col.key] : '';
@@ -455,12 +472,16 @@ function renderCell(row, col) {
     case 'num':
       return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
     case 'tags':
-    case 'tags-subsystem':
-    case 'tags-other': {
-      const cls = col.kind === 'tags-subsystem' ? 'tag subsystem'
-                : col.kind === 'tags-other'     ? 'tag other'
+      return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
+    case 'labels-subsystem':
+    case 'labels-product':
+    case 'labels-other': {
+      const cls = col.kind === 'labels-subsystem' ? 'tag subsystem'
+                : col.kind === 'labels-other'     ? 'tag other'
                 : 'tag';
-      return `<td>${(row[col.key] || []).map(t => `<span class="${cls}">${escapeHtml(t)}</span>`).join('')}</td>`;
+      return `<td>${(row[col.key] || []).map(t =>
+        `<a class="${cls}" href="${labelUrl(t)}" target="_blank" title="Search issues with this label">${escapeHtml(t)}</a>`
+      ).join('')}</td>`;
     }
     case 'assignees':
       return `<td>${(row.assignees || []).map(a =>
@@ -530,7 +551,7 @@ function csvCell(s) {
 function csvValue(row, col) {
   if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
   if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
-  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
     return (row[col.key] || []).join(', ');
   }
   if (col.kind === 'link') return `#${row.iid}`;
