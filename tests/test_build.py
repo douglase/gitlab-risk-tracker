@@ -36,6 +36,8 @@ def _item(
     risk_types: list[str],
     labels: list[str],
     state: str = "OPEN",
+    description: str = "",
+    assignees: list[dict] | None = None,
 ) -> dict:
     """Build a raw GraphQL work-item node matching what build.fetch_work_items returns."""
     cf_values: list[dict] = []
@@ -68,6 +70,22 @@ def _item(
             }
         )
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    widgets: list[dict] = [
+        {"type": "LABELS", "labels": {"nodes": [{"title": ln} for ln in labels]}},
+        {"type": "CUSTOM_FIELDS", "customFieldValues": cf_values},
+    ]
+    if description:
+        widgets.append({"type": "DESCRIPTION", "description": description})
+    if assignees:
+        widgets.append({
+            "type": "ASSIGNEES",
+            "assignees": {"nodes": [
+                {"id": f"gid://user/{a['username']}", "username": a["username"],
+                 "name": a.get("name", a["username"]),
+                 "webUrl": f"https://gitlab.example.com/{a['username']}"}
+                for a in assignees
+            ]},
+        })
     return {
         "id": f"gid://gitlab/WorkItem/{iid}",
         "iid": str(iid),
@@ -77,15 +95,32 @@ def _item(
         "createdAt": now,
         "updatedAt": now,
         "closedAt": None,
-        "widgets": [
-            {"type": "LABELS", "labels": {"nodes": [{"title": ln} for ln in labels]}},
-            {"type": "CUSTOM_FIELDS", "customFieldValues": cf_values},
-        ],
+        "widgets": widgets,
     }
 
 
+SAMPLE_DESC_1 = """## Risk Description
+
+Coating may **delaminate** when subjected to repeated thermal cycling
+between operational extremes. Bonding tests on the witness coupon
+showed adhesion margin of only ~20% above the spec floor.
+
+## Action Plan / Notes
+
+- Order replacement coupons from vendor.
+- Re-run cycling test at 2× rate.
+- Track in JIRA ticket COAT-118.
+
+## Risk Mitigation Planning
+
+If margin remains <30%, switch to alternate coating supplier;
+schedule impact is ~4 weeks.
+"""
+
 SAMPLE_ITEMS = [
-    _item(1, "Risk# WCC100 Coating delamination under thermal cycling", "5", "4", "High", ["Technical"], ["optics", "thermal", "TO6- WCC Pre-SRR", "WCC100"]),
+    _item(1, "Risk# WCC100 Coating delamination under thermal cycling", "5", "4", "High", ["Technical"], ["optics", "thermal", "TO6- WCC Pre-SRR", "WCC100"],
+          description=SAMPLE_DESC_1,
+          assignees=[{"username": "ada", "name": "Ada Lovelace"}]),
     _item(2, "Detector ASIC vendor schedule slip", "4", "5", "High", ["Schedule", "Cost"], ["electrical", "TO12- ESC PDR", "ESC046"]),
     _item(3, "Cryocooler procurement long lead", "5", "3", "High", ["Cost", "Schedule"], ["thermal", "mechanical", "TO6- WCC Pre-SRR"]),
     _item(4, "Pointing jitter exceeds budget", "4", "3", "Medium", ["Technical"], ["mechanical", "optics", "ESC033"]),
@@ -213,6 +248,25 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
 
     # Risk# prefix gets stripped from #1's title.
     assert item1["display_title"] == "Coating delamination under thermal cycling"
+
+    # Risks table: must contain item #1 with rendered section HTML and the assignee.
+    risks_json_str = html.split("const risks = ", 1)[1].split(";\nconst SECTION_META", 1)[0]
+    risks_json = json.loads(risks_json_str)
+    row1 = next(r for r in risks_json if r["iid"] == "1")
+    assert row1["assignees"] and row1["assignees"][0]["name"] == "Ada Lovelace"
+    rd = row1["sections"]["risk_description"]
+    assert "<strong>delaminate</strong>" in rd["html"], "markdown bold not rendered to HTML"
+    assert "Coating may" in rd["preview"]
+    ap = row1["sections"]["action_plan"]
+    assert "<li>" in ap["html"], "markdown list not rendered to HTML"
+    assert row1["sections"]["risk_mitigation"]["full_text"].startswith("If margin remains")
+    # Score is computed.
+    assert row1["score"] == 20
+
+    # The table section is rendered with toolbar + export button.
+    assert 'id="risks-table"' in html
+    assert 'id="export-csv"' in html
+    assert 'id="col-toggles"' in html
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
@@ -268,6 +322,42 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     print(f"History rows: {sum(1 for _ in history_path.open())}")
 
 
+def test_parse_sections() -> None:
+    md = """
+Stuff before any heading is ignored.
+
+## Risk Description
+
+Body of description.
+Multiple lines.
+
+### Subheading inside still counts as boundary
+Other content.
+
+## Action Plan
+- Do thing
+- Do other thing
+
+### Random unrelated heading
+Filler.
+
+# RISK MITIGATION PLANNING:
+Mitigation body.
+"""
+    out = build.parse_sections(md)
+    assert "risk_description" in out
+    assert out["risk_description"].startswith("Body of description.")
+    assert "action_plan" in out
+    assert "- Do thing" in out["action_plan"]
+    assert "risk_mitigation" in out
+    assert out["risk_mitigation"].startswith("Mitigation body.")
+
+    # Missing description / unknown heading -> not present, no crash.
+    assert build.parse_sections(None) == {}
+    assert build.parse_sections("") == {}
+    assert build.parse_sections("## Unknown\nbody") == {}
+
+
 def test_clean_title() -> None:
     cases = [
         ("Risk# WCC100 - NSV mount drift", "NSV mount drift"),
@@ -286,6 +376,7 @@ def test_clean_title() -> None:
 
 
 if __name__ == "__main__":
+    test_parse_sections()
     test_clean_title()
     test_build_dashboard()
     print("OK")

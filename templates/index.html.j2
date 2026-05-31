@@ -55,7 +55,37 @@
   .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
   .bar .n { font-size: 12px; color: var(--muted); }
   .trend { width: 100%; height: 200px; }
-  .hidden { display: none; }
+  .hidden { display: none !important; }
+  .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
+  .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
+  .table-toolbar details summary { cursor: pointer; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; list-style: none; }
+  .table-toolbar details summary::-webkit-details-marker { display: none; }
+  .col-toggles { padding: .5rem; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 4px 4px; display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: .25rem .75rem; margin-top: -1px; max-width: 600px; }
+  .col-toggles label { display: flex; gap: .35rem; align-items: center; font-size: 12px; cursor: pointer; color: var(--fg); flex-direction: row; }
+  #export-csv { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; }
+  #export-csv:hover { background: #f5f5f5; }
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+  table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
+  table.risks th { background: #f5f5f5; cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  table.risks th .sort-indicator { color: var(--muted); margin-left: .25rem; font-size: 10px; }
+  table.risks th.sorted .sort-indicator { color: var(--fg); }
+  table.risks td.num { text-align: right; white-space: nowrap; }
+  table.risks td.markdown { max-width: 320px; }
+  table.risks td.markdown .preview { white-space: pre-wrap; word-wrap: break-word; }
+  table.risks td .see-more { color: #1565c0; cursor: pointer; font-size: 11px; margin-left: .25rem; }
+  table.risks td .tag { display: inline-block; padding: 1px 6px; background: #e3f2fd; color: #0d47a1; border-radius: 10px; font-size: 11px; margin: 1px 1px 1px 0; }
+  table.risks td .tag.subsystem { background: #f3e5f5; color: #4a148c; }
+  table.risks td .tag.other { background: #eceff1; color: #455a64; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+  .modal-content { background: white; max-width: 900px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 1.5rem 2rem; border-radius: 6px; position: relative; }
+  .modal-close { position: absolute; right: .75rem; top: .5rem; cursor: pointer; font-size: 1.75rem; line-height: 1; color: var(--muted); background: none; border: none; }
+  .modal-content h1, .modal-content h2, .modal-content h3 { margin: .75rem 0 .25rem 0; }
+  .modal-content p { margin: .5rem 0; }
+  .modal-content code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 90%; }
+  .modal-content pre { background: #f5f5f5; padding: .75rem; border-radius: 4px; overflow-x: auto; }
+  .modal-content table { border-collapse: collapse; margin: .5rem 0; }
+  .modal-content table th, .modal-content table td { border: 1px solid var(--border); padding: .25rem .5rem; }
 </style>
 </head>
 <body>
@@ -172,9 +202,35 @@
   {% endfor %}
 </section>
 
+<section class="risks-section">
+  <h2>Risks (<span class="row-count" id="row-count">0</span>)</h2>
+  <div class="table-toolbar">
+    <details>
+      <summary>Columns ▾</summary>
+      <div class="col-toggles" id="col-toggles"></div>
+    </details>
+    <button type="button" id="export-csv">Export CSV</button>
+  </div>
+  <div class="table-wrap">
+    <table class="risks" id="risks-table">
+      <thead><tr id="risks-thead"></tr></thead>
+      <tbody id="risks-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-content">
+    <button class="modal-close" type="button" onclick="closeModal()">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 const cells = {{ cells_json | safe }};
 const trends = {{ trends | tojson }};
+const risks = {{ risks_table_json | safe }};
+const SECTION_META = {{ section_meta | tojson }};
 
 const MAX_TITLE_CHARS = 38;
 
@@ -292,7 +348,205 @@ function applyFilters() {
     td.querySelector('ul').innerHTML = head + tail;
   });
   renderDetail();
+  renderTable();
 }
+
+// === Risks table ===
+
+const SECTION_KEYS = SECTION_META.map(s => s.key);
+const COLUMNS = [
+  { key: 'iid',           header: 'ID',         kind: 'link' },
+  { key: 'display_title', header: 'Title',      kind: 'title' },
+  { key: 'consequence',   header: 'C',          kind: 'num' },
+  { key: 'likelihood',    header: 'L',          kind: 'num' },
+  { key: 'score',         header: 'Score',      kind: 'num' },
+  { key: 'priority',      header: 'Priority',   kind: 'text' },
+  { key: 'risk_types',    header: 'Risk Type',  kind: 'tags' },
+  { key: 'subsystems',    header: 'Subsystems', kind: 'tags-subsystem' },
+  { key: 'assignees',     header: 'Owner',      kind: 'assignees' },
+  ...SECTION_META.map(s => ({ key: s.key, header: s.header, kind: 'section' })),
+  { key: 'other_labels',  header: 'Other labels', kind: 'tags-other' },
+];
+
+const COL_STATE_KEY = 'risks-cols-v1';
+const SORT_STATE_KEY = 'risks-sort-v1';
+
+function getColState() {
+  try { return JSON.parse(localStorage.getItem(COL_STATE_KEY)) || {}; }
+  catch { return {}; }
+}
+function setColState(s) {
+  try { localStorage.setItem(COL_STATE_KEY, JSON.stringify(s)); } catch {}
+}
+function isColVisible(key) { return getColState()[key] !== false; }
+
+let sortState;
+try { sortState = JSON.parse(localStorage.getItem(SORT_STATE_KEY)); } catch {}
+if (!sortState || !sortState.key) sortState = { key: 'score', dir: 'desc' };
+
+function renderColToggles() {
+  const wrap = document.getElementById('col-toggles');
+  wrap.innerHTML = COLUMNS.map(c => `
+    <label><input type="checkbox" data-col="${c.key}"${isColVisible(c.key) ? ' checked' : ''}> ${escapeHtml(c.header)}</label>
+  `).join('');
+  wrap.querySelectorAll('input').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const s = getColState();
+      s[cb.dataset.col] = cb.checked;
+      setColState(s);
+      renderTable();
+    });
+  });
+}
+
+function renderThead() {
+  const tr = document.getElementById('risks-thead');
+  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  tr.innerHTML = cols.map(c => {
+    const sorted = sortState.key === c.key;
+    const ind = sorted ? (sortState.dir === 'desc' ? '↓' : '↑') : '↕';
+    return `<th data-sort="${c.key}" class="${sorted ? 'sorted' : ''}">${escapeHtml(c.header)}<span class="sort-indicator">${ind}</span></th>`;
+  }).join('');
+  tr.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      if (sortState.key === k) {
+        sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        sortState.key = k; sortState.dir = 'desc';
+      }
+      try { localStorage.setItem(SORT_STATE_KEY, JSON.stringify(sortState)); } catch {}
+      renderTable();
+    });
+  });
+}
+
+function sortValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+    return (row[col.key] || []).join(', ');
+  }
+  return row[col.key] != null ? row[col.key] : '';
+}
+
+function sortRows(rows) {
+  const col = COLUMNS.find(c => c.key === sortState.key) || COLUMNS.find(c => c.key === 'score');
+  const dir = sortState.dir === 'desc' ? -1 : 1;
+  return rows.slice().sort((a, b) => {
+    let va = sortValue(a, col), vb = sortValue(b, col);
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    return 0;
+  });
+}
+
+function renderCell(row, col) {
+  switch (col.kind) {
+    case 'link':
+      return `<td class="num"><a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)}</a></td>`;
+    case 'title':
+      return `<td><a href="${row.web_url}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`;
+    case 'num':
+      return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
+    case 'tags':
+    case 'tags-subsystem':
+    case 'tags-other': {
+      const cls = col.kind === 'tags-subsystem' ? 'tag subsystem'
+                : col.kind === 'tags-other'     ? 'tag other'
+                : 'tag';
+      return `<td>${(row[col.key] || []).map(t => `<span class="${cls}">${escapeHtml(t)}</span>`).join('')}</td>`;
+    }
+    case 'assignees':
+      return `<td>${(row.assignees || []).map(a =>
+        a.web_url
+          ? `<a href="${a.web_url}" target="_blank">${escapeHtml(a.name)}</a>`
+          : escapeHtml(a.name)
+      ).join(', ')}</td>`;
+    case 'section': {
+      const sec = (row.sections || {})[col.key] || {};
+      const preview = escapeHtml(sec.preview || '');
+      const more = sec.has_more
+        ? ` <a class="see-more" data-iid="${escapeHtml(row.iid)}" data-key="${col.key}">see more</a>`
+        : '';
+      return `<td class="markdown"><div class="preview">${preview}</div>${more}</td>`;
+    }
+    case 'text':
+    default:
+      return `<td>${escapeHtml(row[col.key] != null ? String(row[col.key]) : '')}</td>`;
+  }
+}
+
+function renderTable() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  document.getElementById('row-count').textContent = sorted.length;
+  renderThead();
+  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  const tbody = document.getElementById('risks-tbody');
+  tbody.innerHTML = sorted.map(row => '<tr>' + cols.map(c => renderCell(row, c)).join('') + '</tr>').join('');
+  tbody.querySelectorAll('a.see-more').forEach(a => {
+    a.addEventListener('click', () => openSection(a.dataset.iid, a.dataset.key));
+  });
+}
+
+function openSection(iid, key) {
+  const row = risks.find(r => String(r.iid) === String(iid));
+  if (!row) return;
+  const sec = (row.sections || {})[key] || {};
+  const col = COLUMNS.find(c => c.key === key);
+  document.getElementById('modal-body').innerHTML =
+    `<h2>${escapeHtml(col.header)} — <a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a></h2>`
+    + (sec.html || '<em>(empty)</em>');
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target.id === 'modal') closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function csvCell(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function csvValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind === 'tags-subsystem' || col.kind === 'tags-other') {
+    return (row[col.key] || []).join(', ');
+  }
+  if (col.kind === 'link') return `#${row.iid}`;
+  if (col.kind === 'title') return row.display_title || row.title || '';
+  return row[col.key] != null ? row[col.key] : '';
+}
+function exportCsv() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  // Always include a GitLab Link column at the end (full URL).
+  const header = cols.map(c => csvCell(c.header)).concat(['GitLab Link']).join(',');
+  const rows = sorted.map(r =>
+    cols.map(c => csvCell(csvValue(r, c))).concat([csvCell(r.web_url)]).join(',')
+  );
+  const csv = '﻿' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'risks-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+document.getElementById('export-csv').addEventListener('click', exportCsv);
 
 document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
 document.getElementById('clear-filters').addEventListener('click', () => {
@@ -302,6 +556,7 @@ document.getElementById('clear-filters').addEventListener('click', () => {
   });
   applyFilters();
 });
+renderColToggles();
 applyFilters();
 drawTrend();
 </script>

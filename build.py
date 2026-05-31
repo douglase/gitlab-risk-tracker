@@ -17,6 +17,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import markdown as md_lib
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -55,6 +56,87 @@ def group_labels(labels: list[str]) -> dict[str, list[str]]:
             if pat.match(label):
                 out[key].append(label)
     return {k: sorted(v) for k, v in out.items()}
+
+
+MAX_PREVIEW_CHARS = 280
+
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
+
+# Canonical section keys + accepted heading synonyms (normalized form).
+CANONICAL_SECTIONS: list[tuple[str, str, list[str]]] = [
+    ("risk_description", "Risk Description",
+     ["risk description", "description", "summary"]),
+    ("action_plan", "Action Plan / Notes",
+     ["action plan / notes", "action plan", "notes", "action"]),
+    ("risk_mitigation", "Risk Mitigation Planning",
+     ["risk mitigation planning", "risk mitigation", "mitigation"]),
+]
+
+
+def _normalize_heading(heading: str) -> str:
+    s = heading.strip().rstrip(":").lower()
+    s = re.sub(r"\s*/\s*", " / ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _canonical_section_key(heading: str) -> str | None:
+    norm = _normalize_heading(heading)
+    for key, _, syns in CANONICAL_SECTIONS:
+        if norm in syns:
+            return key
+    return None
+
+
+def parse_sections(markdown_text: str | None) -> dict[str, str]:
+    """Parse markdown into {canonical_key: raw_markdown_content}."""
+    if not markdown_text:
+        return {}
+    sections: dict[str, str] = {}
+    matches = list(HEADING_RE.finditer(markdown_text))
+    for i, m in enumerate(matches):
+        key = _canonical_section_key(m.group(2))
+        if not key:
+            continue
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_text)
+        sections[key] = markdown_text[start:end].strip()
+    return sections
+
+
+_MD = md_lib.Markdown(
+    extensions=["fenced_code", "tables", "nl2br", "sane_lists"],
+    output_format="html5",
+)
+
+
+def render_markdown(text: str | None) -> str:
+    if not text:
+        return ""
+    _MD.reset()
+    return _MD.convert(text)
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def plain_text(html: str) -> str:
+    return _WS_RE.sub(" ", _TAG_RE.sub("", html or "")).strip()
+
+
+def truncate_preview(text: str, n: int = MAX_PREVIEW_CHARS) -> tuple[str, bool]:
+    text = (text or "").strip()
+    if len(text) <= n:
+        return text, False
+    return text[:n].rstrip() + "…", True
+
+
+def render_section(md_text: str | None) -> dict:
+    html = render_markdown(md_text)
+    full = plain_text(html)
+    preview, has_more = truncate_preview(full)
+    return {"html": html, "preview": preview, "full_text": full, "has_more": has_more}
 
 
 def clean_title(title: str | None) -> str:
@@ -170,6 +252,16 @@ query($group: ID!, $cursor: String) {
             type
             labels { nodes { title } }
           }
+          ... on WorkItemWidgetDescription {
+            type
+            description
+          }
+          ... on WorkItemWidgetAssignees {
+            type
+            assignees {
+              nodes { id username name webUrl }
+            }
+          }
           ... on WorkItemWidgetCustomFields {
             type
             customFieldValues {
@@ -235,14 +327,29 @@ def to_int(value) -> int | None:
 def normalize(item: dict) -> dict:
     labels: list[str] = []
     cf_values: list = []
+    description: str = ""
+    assignees: list[dict] = []
     for w in item.get("widgets") or []:
         wtype = w.get("type")
         if wtype == "LABELS":
             labels = [n["title"] for n in (w.get("labels") or {}).get("nodes", [])]
+        elif wtype == "DESCRIPTION":
+            description = w.get("description") or ""
+        elif wtype == "ASSIGNEES":
+            assignees = [
+                {
+                    "name": (n.get("name") or n.get("username") or "").strip(),
+                    "username": n.get("username"),
+                    "web_url": n.get("webUrl"),
+                }
+                for n in (w.get("assignees") or {}).get("nodes", [])
+            ]
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
     label_groups = group_labels(labels)
+    grouped = {l for vals in label_groups.values() for l in vals}
+    other_labels = sorted(set(labels) - set(SUBSYSTEMS) - grouped)
     return {
         "id": item["id"],
         "iid": item["iid"],
@@ -259,6 +366,10 @@ def normalize(item: dict) -> dict:
         "risk_types": select_multi(cf_values, CF_RISK_TYPE),
         "subsystems": subsystems,
         "label_groups": label_groups,
+        "other_labels": other_labels,
+        "assignees": assignees,
+        "description": description,
+        "sections": parse_sections(description),
     }
 
 
@@ -484,6 +595,39 @@ def render(items: list[dict], history: list[dict]) -> None:
             label_options[key].update(vals)
     label_options = {k: sorted(v) for k, v in label_options.items()}
     label_groups_meta = [{"key": k, "label": lbl} for k, _, lbl in LABEL_GROUPS]
+
+    section_meta = [
+        {"key": key, "header": header}
+        for key, header, _ in CANONICAL_SECTIONS
+    ]
+    risks_table: list[dict] = []
+    for it in items:
+        if it["state"] == "closed":
+            continue
+        c, l = it["consequence"], it["likelihood"]
+        if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
+            continue
+        rendered_sections = {
+            key: render_section(it["sections"].get(key, ""))
+            for key, _, _ in CANONICAL_SECTIONS
+        }
+        risks_table.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "consequence": c,
+            "likelihood": l,
+            "score": c * l,
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "subsystems": it["subsystems"],
+            "label_groups": it["label_groups"],
+            "other_labels": it["other_labels"],
+            "assignees": it["assignees"],
+            "sections": rendered_sections,
+        })
+    risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))
     html = tpl.render(
         group_path=GROUP_PATH,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -500,6 +644,9 @@ def render(items: list[dict], history: list[dict]) -> None:
         risk_types=["Technical", "Cost", "Schedule"],
         label_groups_meta=label_groups_meta,
         label_options=label_options,
+        risks_table_json=json.dumps(risks_table),
+        section_meta=section_meta,
+        max_preview_chars=MAX_PREVIEW_CHARS,
     )
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     (PUBLIC_DIR / "index.html").write_text(html)
