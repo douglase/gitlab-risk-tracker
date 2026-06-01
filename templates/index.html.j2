@@ -40,8 +40,14 @@
   td ul li.closed a { color: var(--muted); text-decoration: line-through; }
   td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
   .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
-  .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
-  .legend span { padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 3px; }
+  .legend { display: flex; gap: .35rem; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .legend-chip { padding: .15rem .6rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font: inherit; font-size: 12px; }
+  .legend-chip.low { background: var(--low); }
+  .legend-chip.medium { background: var(--medium); }
+  .legend-chip.high { background: var(--high); }
+  .legend-chip.critical { background: var(--critical); }
+  .legend-chip:hover { filter: brightness(0.95); }
+  .legend-chip.active { border-color: #1565c0; border-width: 2px; padding: calc(.15rem - 1px) calc(.6rem - 1px); font-weight: 600; }
   section { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
   section h2 { margin: 0 0 .75rem 0; font-size: 1rem; }
   .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -134,11 +140,11 @@
   </label>
   {% endif %}
   <button type="button" id="clear-filters">Clear filters</button>
-  <span class="legend">
-    <span class="low">low (1–4)</span>
-    <span class="medium">medium (5–9)</span>
-    <span class="high">high (10–15)</span>
-    <span class="critical">critical (16–25)</span>
+  <span class="legend" title="Click a tier to filter (multi-select)">
+    <button type="button" class="legend-chip low"      data-tier="low">low (1–4)</button>
+    <button type="button" class="legend-chip medium"   data-tier="medium">medium (5–9)</button>
+    <button type="button" class="legend-chip high"     data-tier="high">high (10–15)</button>
+    <button type="button" class="legend-chip critical" data-tier="critical">critical (16–25)</button>
   </span>
 </div>
 
@@ -275,6 +281,8 @@ function getMulti(id) {
   return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
 }
 
+const selectedTiers = new Set();
+
 function currentFilter() {
   return {
     status:   document.getElementById('f-status').value,
@@ -282,6 +290,7 @@ function currentFilter() {
     pri:      document.getElementById('f-priority').value,
     rt:       document.getElementById('f-risktype').value,
     products: getMulti('f-products'),
+    tiers:    Array.from(selectedTiers),
   };
 }
 
@@ -291,6 +300,7 @@ function matchesFilter(item, f) {
   if (f.pri && item.priority !== f.pri) return false;
   if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
   if (f.products.length && !f.products.some(p => (item.products || []).includes(p))) return false;
+  if (f.tiers.length && !f.tiers.includes(item.tier)) return false;
   return true;
 }
 
@@ -580,11 +590,21 @@ function exportCsv() {
 document.getElementById('export-csv').addEventListener('click', exportCsv);
 
 document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
+document.querySelectorAll('.legend-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tier;
+    if (selectedTiers.has(t)) { selectedTiers.delete(t); btn.classList.remove('active'); }
+    else { selectedTiers.add(t); btn.classList.add('active'); }
+    applyFilters();
+  });
+});
 document.getElementById('clear-filters').addEventListener('click', () => {
   document.querySelectorAll('.filters select').forEach(el => {
     Array.from(el.options).forEach(o => o.selected = false);
     if (!el.multiple) el.value = '';
   });
+  selectedTiers.clear();
+  document.querySelectorAll('.legend-chip').forEach(c => c.classList.remove('active'));
   applyFilters();
 });
 renderColToggles();

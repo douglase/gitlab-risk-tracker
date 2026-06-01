@@ -586,6 +586,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
                 "products": it["products"],
+                "tier": severity_tier(c, l),
             }
             for it in matrix["cells"][(c, l)]
         ]
@@ -621,6 +622,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
             "consequence": c,
             "likelihood": l,
             "score": c * l,
+            "tier": severity_tier(c, l),
             "priority": it["priority"],
             "risk_types": it["risk_types"],
             "subsystems": it["subsystems"],
