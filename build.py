@@ -270,6 +270,10 @@ query($group: ID!, $cursor: String) {
               nodes { id username name webUrl }
             }
           }
+          ... on WorkItemWidgetHealthStatus {
+            type
+            healthStatus
+          }
           ... on WorkItemWidgetCustomFields {
             type
             customFieldValues {
@@ -337,6 +341,7 @@ def normalize(item: dict) -> dict:
     cf_values: list = []
     description: str = ""
     assignees: list[dict] = []
+    health_status: str | None = None
     for w in item.get("widgets") or []:
         wtype = w.get("type")
         if wtype == "LABELS":
@@ -352,6 +357,8 @@ def normalize(item: dict) -> dict:
                 }
                 for n in (w.get("assignees") or {}).get("nodes", [])
             ]
+        elif wtype == "HEALTH_STATUS":
+            health_status = w.get("healthStatus")
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
@@ -375,6 +382,7 @@ def normalize(item: dict) -> dict:
         "products": products,
         "other_labels": other_labels,
         "assignees": assignees,
+        "health_status": health_status,
         "description": description,
         "sections": parse_sections(description),
     }
@@ -683,6 +691,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
             "products": it["products"],
             "other_labels": it["other_labels"],
             "assignees": it["assignees"],
+            "health_status": it["health_status"],
             "sections": rendered_sections,
         })
     risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))

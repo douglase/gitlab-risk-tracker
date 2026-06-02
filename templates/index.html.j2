@@ -85,6 +85,10 @@
   table.risks .state-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   table.risks .state-pill.state-open { background: #e8f5e9; color: #1b5e20; }
   table.risks .state-pill.state-closed { background: #eceff1; color: #455a64; text-decoration: line-through; }
+  table.risks .health-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  table.risks .health-pill.health-onTrack { background: #e8f5e9; color: #1b5e20; }
+  table.risks .health-pill.health-needsAttention { background: #fff8e1; color: #f57f17; }
+  table.risks .health-pill.health-atRisk { background: #ffebee; color: #b71c1c; }
   table.risks td.markdown .preview { white-space: pre-wrap; word-wrap: break-word; }
   table.risks td .see-more { color: #1565c0; cursor: pointer; font-size: 11px; margin-left: .25rem; }
   table.risks td .edit-link { color: var(--muted); text-decoration: none; font-size: 12px; margin-left: .35rem; opacity: .55; }
@@ -452,6 +456,7 @@ const COLUMNS = [
   { key: 'iid',           header: 'ID',         kind: 'link' },
   { key: 'display_title', header: 'Title',      kind: 'title' },
   { key: 'state',         header: 'Status',     kind: 'state' },
+  { key: 'health_status', header: 'Health',     kind: 'health', defaultHidden: true },
   { key: 'created_at',    header: 'Opened',     kind: 'date', defaultHidden: true },
   { key: 'closed_at',     header: 'Closed',     kind: 'date', defaultHidden: true },
   { key: 'consequence',   header: 'C',          kind: 'num' },
@@ -562,6 +567,12 @@ function renderCell(row, col) {
       const v = row[col.key];
       return `<td class="num">${v ? escapeHtml(String(v).slice(0, 10)) : ''}</td>`;
     }
+    case 'health': {
+      const h = row.health_status;
+      if (!h) return '<td></td>';
+      const labels = { onTrack: 'On track', needsAttention: 'Needs attention', atRisk: 'At risk' };
+      return `<td><span class="health-pill health-${escapeHtml(h)}">${escapeHtml(labels[h] || h)}</span></td>`;
+    }
     case 'tags':
       return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
     case 'labels-subsystem':
@@ -647,6 +658,7 @@ function csvValue(row, col) {
   }
   if (col.kind === 'link') return `#${row.iid}`;
   if (col.kind === 'title') return row.display_title || row.title || '';
+  if (col.kind === 'health') return row.health_status || '';
   return row[col.key] != null ? row[col.key] : '';
 }
 function exportCsv() {
