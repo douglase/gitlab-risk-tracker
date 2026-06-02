@@ -623,6 +623,8 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
             "likelihood": l,
             "score": c * l,
             "tier": severity_tier(c, l),
+            "created_at": it.get("created_at"),
+            "closed_at": it.get("closed_at"),
             "priority": it["priority"],
             "risk_types": it["risk_types"],
             "subsystems": it["subsystems"],
