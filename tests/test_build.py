@@ -126,13 +126,13 @@ uncertainty in the heat-shield thermal-response models, which are based on assum
 about the effects of ionizing radiation on heat transfer and the condition of the
 vehicle surface as it affects boundary-layer transition.
 
-## Action Plan / Notes
+## Notes
 
 - Refine atmospheric uncertainty model with the latest flyby data.
 - Add margin to heat-shield ablation analysis for upper-bound density.
 - Coordinate with the planetary protection office on contamination scenarios.
 
-## Risk Mitigation Planning
+## Mitigation Plan
 
 If shield margin remains below 30% after the refined analysis, expand the aerocapture
 corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact
@@ -158,13 +158,13 @@ particular, a predominance of the staff departures may be in the higher labor ca
 among people who have experience using the programming languages associated with the
 legacy software.
 
-## Action Plan / Notes
+## Notes
 
 - Survey current legacy-language staff for retirement intent within the next 24 months.
 - Begin knowledge-capture sprints with senior engineers.
 - Open requisitions for two senior engineers familiar with the legacy stack.
 
-## Risk Mitigation Planning
+## Mitigation Plan
 
 If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting
 effort to the modern language and accept an ~9-month schedule slip.
@@ -409,14 +409,14 @@ Multiple lines.
 ### Subheading inside still counts as boundary
 Other content.
 
-## Action Plan
+## Notes
 - Do thing
 - Do other thing
 
 ### Random unrelated heading
 Filler.
 
-# RISK MITIGATION PLANNING:
+# Plan:
 Mitigation body.
 """
     out = build.parse_sections(md)
@@ -426,6 +426,8 @@ Mitigation body.
     assert "- Do thing" in out["action_plan"]
     assert "risk_mitigation" in out
     assert out["risk_mitigation"].startswith("Mitigation body.")
+    # "Mitigation Plan" canonical heading also resolves.
+    assert "risk_mitigation" in build.parse_sections("## Mitigation Plan\nbody")
 
     # Missing description / unknown heading -> not present, no crash.
     assert build.parse_sections(None) == {}
