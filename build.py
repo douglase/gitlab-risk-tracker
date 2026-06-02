@@ -64,10 +64,11 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 CANONICAL_SECTIONS: list[tuple[str, str, list[str]]] = [
     ("risk_description", "Risk Description",
      ["risk description", "description", "summary"]),
-    ("action_plan", "Action Plan / Notes",
-     ["action plan / notes", "action plan", "notes", "action"]),
-    ("risk_mitigation", "Risk Mitigation Planning",
-     ["risk mitigation planning", "risk mitigation", "mitigation"]),
+    ("action_plan", "Notes",
+     ["notes"]),
+    ("risk_mitigation", "Mitigation Plan",
+     ["mitigation plan", "risk mitigation planning", "risk mitigation",
+      "mitigation", "plan", "planning"]),
 ]
 
 
@@ -509,6 +510,57 @@ def trend_series(history: list[dict], days: int = 90) -> dict:
     return {"labels": labels, "series": series}
 
 
+def risk_score_series(history: list[dict], current_items: list[dict],
+                      days: int = 90) -> dict:
+    """Per-risk score (consequence * likelihood) over the last `days` days.
+
+    Returns one series per risk id that currently exists in `current_items`
+    and is scored. Score on a given day is null if the risk wasn't yet known
+    or was closed. Attaches current filterable attributes so the JS chart
+    can hide non-matching series when filters change.
+    """
+    today = datetime.now(timezone.utc).date()
+    start = today - timedelta(days=days - 1)
+    labels = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+    by_id = {it["id"]: it for it in current_items}
+    score_by_day: dict[str, list[int | None]] = {
+        rid: [None] * days for rid in by_id
+    }
+    for i in range(days):
+        day = start + timedelta(days=i)
+        when = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=timezone.utc)
+        state = reconstruct_state_at(history, when)
+        for rid in by_id:
+            r = state.get(rid)
+            if not r or r.get("state") == "closed":
+                continue
+            c = r.get("consequence")
+            l = r.get("likelihood")
+            if c is not None and l is not None:
+                score_by_day[rid][i] = c * l
+    series: list[dict] = []
+    for rid, scores in score_by_day.items():
+        it = by_id[rid]
+        c, l = it["consequence"], it["likelihood"]
+        if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
+            continue
+        series.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "state": it["state"],
+            "subsystems": it["subsystems"],
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "products": it["products"],
+            "tier": severity_tier(c, l),
+            "current_score": c * l,
+            "scores": scores,
+        })
+    return {"labels": labels, "series": series}
+
+
 def movement(history: list[dict], days: int = 30) -> dict:
     today = datetime.now(timezone.utc).date()
     start_dt = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=days)
@@ -644,6 +696,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
         severity_tier=severity_tier,
         cells_json=json.dumps(cells_serializable),
         trends=trend_series(history),
+        risk_trends=risk_score_series(history, items),
         movement=movement(history),
         subsystem_counts=dict(subsystem_counts),
         priorities=["High", "Medium", "Low"],

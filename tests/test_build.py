@@ -126,13 +126,13 @@ uncertainty in the heat-shield thermal-response models, which are based on assum
 about the effects of ionizing radiation on heat transfer and the condition of the
 vehicle surface as it affects boundary-layer transition.
 
-## Action Plan / Notes
+## Notes
 
 - Refine atmospheric uncertainty model with the latest flyby data.
 - Add margin to heat-shield ablation analysis for upper-bound density.
 - Coordinate with the planetary protection office on contamination scenarios.
 
-## Risk Mitigation Planning
+## Mitigation Plan
 
 If shield margin remains below 30% after the refined analysis, expand the aerocapture
 corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact
@@ -158,13 +158,13 @@ particular, a predominance of the staff departures may be in the higher labor ca
 among people who have experience using the programming languages associated with the
 legacy software.
 
-## Action Plan / Notes
+## Notes
 
 - Survey current legacy-language staff for retirement intent within the next 24 months.
 - Begin knowledge-capture sprints with senior engineers.
 - Open requisitions for two senior engineers familiar with the legacy stack.
 
-## Risk Mitigation Planning
+## Mitigation Plan
 
 If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting
 effort to the modern language and accept an ~9-month schedule slip.
@@ -397,6 +397,158 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     print(f"History rows: {sum(1 for _ in history_path.open())}")
 
 
+def test_every_snapshot_field_change_is_retained(tmp_path) -> None:
+    """For each field in SNAPSHOT_FIELDS, mutate it across successive runs
+    and confirm history.ndjson grows by exactly one row per change with
+    the new value persisted."""
+    history_path = tmp_path / "history.ndjson"
+    saved_history = build.HISTORY_PATH
+    saved_public = build.PUBLIC_DIR
+    build.HISTORY_PATH = history_path
+    build.PUBLIC_DIR = tmp_path / "public"
+    try:
+        baseline = [_item(
+            42, "Baseline risk", "3", "3", "Medium", ["Technical"],
+            ["software", "TO6- WCC Pre-SRR"],
+        )]
+        # First run seeds one row.
+        _run_main_with_items(baseline)
+        assert _count_lines(history_path) == 1
+
+        # Re-running identical input must not append.
+        _run_main_with_items(baseline)
+        assert _count_lines(history_path) == 1, "idempotent re-run failed"
+
+        # Sequence of single-field mutations. Each must add exactly 1 row.
+        mutations = [
+            # (description, mutator, expected snapshot-field, expected new value)
+            ("change consequence 3->4",
+             _set_cf(build.CF_CONSEQUENCE, "4"),
+             "consequence", 4),
+            ("change likelihood 3->5",
+             _set_cf(build.CF_LIKELIHOOD, "5"),
+             "likelihood", 5),
+            ("change priority Medium->High",
+             _set_cf(build.CF_PRIORITY, "High"),
+             "priority", "High"),
+            ("change risk_types Technical->[Cost, Schedule]",
+             _set_multi(build.CF_RISK_TYPE, ["Cost", "Schedule"]),
+             "risk_types", ["Cost", "Schedule"]),
+            ("add subsystem optics",
+             _set_labels(["software", "optics", "TO6- WCC Pre-SRR"]),
+             "subsystems", ["optics", "software"]),
+            ("close the issue",
+             _set_state("CLOSED"),
+             "state", "closed"),
+        ]
+        prev_count = _count_lines(history_path)
+        for desc, mutate, field, expected in mutations:
+            items = [mutate(json.loads(json.dumps(baseline[0])))]
+            # Each step builds on the previous step's accumulated state, so
+            # update baseline to carry forward.
+            baseline = items
+            _run_main_with_items(items)
+            cur = _count_lines(history_path)
+            assert cur == prev_count + 1, (
+                f"{desc}: expected exactly 1 new row, got {cur - prev_count}"
+            )
+            last = json.loads(history_path.read_text().splitlines()[-1])
+            assert last[field] == expected, (
+                f"{desc}: last row's {field} = {last[field]!r}, expected {expected!r}"
+            )
+            prev_count = cur
+    finally:
+        build.HISTORY_PATH = saved_history
+        build.PUBLIC_DIR = saved_public
+
+
+def test_multiple_items_changing_in_one_run(tmp_path) -> None:
+    """Several items changing in the same run all get individual rows."""
+    history_path = tmp_path / "history.ndjson"
+    saved_history = build.HISTORY_PATH
+    saved_public = build.PUBLIC_DIR
+    build.HISTORY_PATH = history_path
+    build.PUBLIC_DIR = tmp_path / "public"
+    try:
+        items = [
+            _item(101, "Risk A", "2", "2", "Low",  ["Technical"], ["software"]),
+            _item(102, "Risk B", "3", "3", "Medium", ["Cost"],     ["thermal"]),
+            _item(103, "Risk C", "4", "4", "High",   ["Schedule"], ["optics"]),
+        ]
+        _run_main_with_items(items)
+        assert _count_lines(history_path) == 3  # 3 first-seen rows
+
+        # Change C on A, L on B, leave C unchanged.
+        mutated = [
+            _set_cf(build.CF_CONSEQUENCE, "4")(json.loads(json.dumps(items[0]))),
+            _set_cf(build.CF_LIKELIHOOD,  "5")(json.loads(json.dumps(items[1]))),
+            json.loads(json.dumps(items[2])),
+        ]
+        _run_main_with_items(mutated)
+        assert _count_lines(history_path) == 5, (
+            "expected 2 new rows (A and B changed, C unchanged)"
+        )
+    finally:
+        build.HISTORY_PATH = saved_history
+        build.PUBLIC_DIR = saved_public
+
+
+def _count_lines(p: Path) -> int:
+    return sum(1 for _ in p.open()) if p.exists() else 0
+
+
+def _set_cf(field_name: str, value: str):
+    def mutate(it):
+        for w in it["widgets"]:
+            if w["type"] == "CUSTOM_FIELDS":
+                found = False
+                for cf in w["customFieldValues"]:
+                    if cf["customField"]["name"] == field_name:
+                        cf["selectedOptions"] = [{"id": f"gid://opt/{value}", "value": value}]
+                        found = True
+                if not found:
+                    w["customFieldValues"].append({
+                        "customField": {"id": "gid://", "name": field_name, "fieldType": "SINGLE_SELECT"},
+                        "selectedOptions": [{"id": f"gid://opt/{value}", "value": value}],
+                    })
+        return it
+    return mutate
+
+
+def _set_multi(field_name: str, values: list[str]):
+    def mutate(it):
+        for w in it["widgets"]:
+            if w["type"] == "CUSTOM_FIELDS":
+                for cf in w["customFieldValues"]:
+                    if cf["customField"]["name"] == field_name:
+                        cf["selectedOptions"] = [
+                            {"id": f"gid://opt/{v}", "value": v} for v in values
+                        ]
+                        return it
+                w["customFieldValues"].append({
+                    "customField": {"id": "gid://", "name": field_name, "fieldType": "MULTI_SELECT"},
+                    "selectedOptions": [{"id": f"gid://opt/{v}", "value": v} for v in values],
+                })
+        return it
+    return mutate
+
+
+def _set_labels(labels: list[str]):
+    def mutate(it):
+        for w in it["widgets"]:
+            if w["type"] == "LABELS":
+                w["labels"] = {"nodes": [{"title": l} for l in labels]}
+        return it
+    return mutate
+
+
+def _set_state(state: str):
+    def mutate(it):
+        it["state"] = state
+        return it
+    return mutate
+
+
 def test_parse_sections() -> None:
     md = """
 Stuff before any heading is ignored.
@@ -409,14 +561,14 @@ Multiple lines.
 ### Subheading inside still counts as boundary
 Other content.
 
-## Action Plan
+## Notes
 - Do thing
 - Do other thing
 
 ### Random unrelated heading
 Filler.
 
-# RISK MITIGATION PLANNING:
+# Plan:
 Mitigation body.
 """
     out = build.parse_sections(md)
@@ -426,6 +578,8 @@ Mitigation body.
     assert "- Do thing" in out["action_plan"]
     assert "risk_mitigation" in out
     assert out["risk_mitigation"].startswith("Mitigation body.")
+    # "Mitigation Plan" canonical heading also resolves.
+    assert "risk_mitigation" in build.parse_sections("## Mitigation Plan\nbody")
 
     # Missing description / unknown heading -> not present, no crash.
     assert build.parse_sections(None) == {}
@@ -451,7 +605,12 @@ def test_clean_title() -> None:
 
 
 if __name__ == "__main__":
+    import tempfile
     test_parse_sections()
     test_clean_title()
+    with tempfile.TemporaryDirectory() as d:
+        test_every_snapshot_field_change_is_retained(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_multiple_items_changing_in_one_run(Path(d))
     test_build_dashboard()
     print("OK")
