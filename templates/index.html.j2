@@ -390,6 +390,8 @@ const COLUMNS = [
   { key: 'iid',           header: 'ID',         kind: 'link' },
   { key: 'display_title', header: 'Title',      kind: 'title' },
   { key: 'state',         header: 'Status',     kind: 'state' },
+  { key: 'created_at',    header: 'Opened',     kind: 'date', defaultHidden: true },
+  { key: 'closed_at',     header: 'Closed',     kind: 'date', defaultHidden: true },
   { key: 'consequence',   header: 'C',          kind: 'num' },
   { key: 'likelihood',    header: 'L',          kind: 'num' },
   { key: 'score',         header: 'Score',      kind: 'num' },
@@ -412,7 +414,11 @@ function getColState() {
 function setColState(s) {
   try { localStorage.setItem(COL_STATE_KEY, JSON.stringify(s)); } catch {}
 }
-function isColVisible(key) { return getColState()[key] !== false; }
+function isColVisible(col) {
+  const s = getColState();
+  if (Object.prototype.hasOwnProperty.call(s, col.key)) return s[col.key];
+  return !col.defaultHidden;
+}
 
 let sortState;
 try { sortState = JSON.parse(localStorage.getItem(SORT_STATE_KEY)); } catch {}
@@ -421,7 +427,7 @@ if (!sortState || !sortState.key) sortState = { key: 'score', dir: 'desc' };
 function renderColToggles() {
   const wrap = document.getElementById('col-toggles');
   wrap.innerHTML = COLUMNS.map(c => `
-    <label><input type="checkbox" data-col="${c.key}"${isColVisible(c.key) ? ' checked' : ''}> ${escapeHtml(c.header)}</label>
+    <label><input type="checkbox" data-col="${c.key}"${isColVisible(c) ? ' checked' : ''}> ${escapeHtml(c.header)}</label>
   `).join('');
   wrap.querySelectorAll('input').forEach(cb => {
     cb.addEventListener('change', () => {
@@ -435,7 +441,7 @@ function renderColToggles() {
 
 function renderThead() {
   const tr = document.getElementById('risks-thead');
-  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  const cols = COLUMNS.filter(c => isColVisible(c));
   tr.innerHTML = cols.map(c => {
     const sorted = sortState.key === c.key;
     const ind = sorted ? (sortState.dir === 'desc' ? '↓' : '↑') : '↕';
@@ -490,6 +496,10 @@ function renderCell(row, col) {
       const label = s.charAt(0).toUpperCase() + s.slice(1);
       return `<td><span class="state-pill state-${escapeHtml(s)}">${escapeHtml(label)}</span></td>`;
     }
+    case 'date': {
+      const v = row[col.key];
+      return `<td class="num">${v ? escapeHtml(String(v).slice(0, 10)) : ''}</td>`;
+    }
     case 'tags':
       return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
     case 'labels-subsystem':
@@ -532,7 +542,7 @@ function renderTable() {
   const sorted = sortRows(filtered);
   document.getElementById('row-count').textContent = sorted.length;
   renderThead();
-  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  const cols = COLUMNS.filter(c => isColVisible(c));
   const tbody = document.getElementById('risks-tbody');
   tbody.innerHTML = sorted.map(row => '<tr>' + cols.map(c => renderCell(row, c)).join('') + '</tr>').join('');
   tbody.querySelectorAll('a.see-more').forEach(a => {
@@ -581,7 +591,7 @@ function exportCsv() {
   const f = currentFilter();
   const filtered = risks.filter(r => matchesFilter(r, f));
   const sorted = sortRows(filtered);
-  const cols = COLUMNS.filter(c => isColVisible(c.key));
+  const cols = COLUMNS.filter(c => isColVisible(c));
   // Always include a GitLab Link column at the end (full URL).
   const header = cols.map(c => csvCell(c.header)).concat(['GitLab Link']).join(',');
   const rows = sorted.map(r =>
