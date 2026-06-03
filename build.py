@@ -5,6 +5,9 @@ field values to data/history.ndjson, and renders public/index.html.
 
 Designed to run inside a GitLab CI job; can also run locally with
 GITLAB_TOKEN and (optionally) CI_SERVER_URL exported.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2026 Ewan Douglas and contributors
 """
 
 from __future__ import annotations
