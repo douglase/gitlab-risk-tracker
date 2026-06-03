@@ -31,9 +31,9 @@ jobs:
 
       # docs/license.rst and scripts/check_scancode_allowlist.py describe
       # the licensing policy meta-textually; they hold no licensed source.
-      # Without --ignore on those files, scancode flags strings like
-      # 'gpl-1.0-plus' inside the allowlist dictionary as license detections
-      # and the meta-discussion in the docs as 'unknown-license-reference'.
+      # Without --ignore on those files, scancode would match the literal
+      # allowlist-key strings in the dictionary and the meta-discussion
+      # in the docs as license detections.
       - name: Run scancode
         run: |
           mkdir -p scancode-results
