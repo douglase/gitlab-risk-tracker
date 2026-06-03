@@ -338,7 +338,7 @@ function renderDetail() {
     `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
   const body = document.getElementById('detail-body');
   body.innerHTML = issues.map(i =>
-    `<tr><td><a href="${i.web_url}" target="_blank">#${escapeHtml(i.iid)}</a></td>` +
+    `<tr><td><a href="${escapeHtml(i.web_url)}" target="_blank">#${escapeHtml(i.iid)}</a></td>` +
     `<td>${escapeHtml(i.display_title || i.title)}</td></tr>`
   ).join('') || '<tr><td colspan="2" style="color:#999">No issues match the current filter</td></tr>';
   document.getElementById('detail-section').classList.remove('hidden');
@@ -419,7 +419,7 @@ function drawRiskTrends() {
     const color = tierColors[s.tier] || '#666';
     const lastVal = last != null ? last : '–';
     const title = (s.display_title || s.title || '').slice(0, 28);
-    inner += `<text x="${plotRight + 6}" y="${ny}" font-size="10" fill="${color}"><a href="${s.web_url}" target="_blank">#${s.iid} ${escapeHtml(title)}: ${lastVal}</a></text>`;
+    inner += `<a href="${escapeHtml(s.web_url)}" target="_blank"><text x="${plotRight + 6}" y="${ny}" font-size="10" fill="${color}">#${escapeHtml(String(s.iid))} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text></a>`;
   });
   if (ordered.length > maxLabels) {
     inner += `<text x="${plotRight + 6}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
@@ -441,7 +441,7 @@ function applyFilters() {
     const head = filtered.slice(0, 4).map(i => {
       const title = i.display_title || i.title || '';
       const cls = i.state === 'closed' ? ' class="closed"' : '';
-      return `<li${cls}><a href="${i.web_url}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+      return `<li${cls}><a href="${escapeHtml(i.web_url)}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
     }).join('');
     const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
     td.querySelector('ul').innerHTML = head + tail;
@@ -555,9 +555,9 @@ function sortRows(rows) {
 function renderCell(row, col) {
   switch (col.kind) {
     case 'link':
-      return `<td class="num"><a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)}</a></td>`;
+      return `<td class="num"><a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)}</a></td>`;
     case 'title':
-      return `<td><a href="${row.web_url}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`;
+      return `<td><a href="${escapeHtml(row.web_url)}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`;
     case 'num':
       return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
     case 'state': {
@@ -590,7 +590,7 @@ function renderCell(row, col) {
     case 'assignees':
       return `<td>${(row.assignees || []).map(a =>
         a.web_url
-          ? `<a href="${a.web_url}" target="_blank">${escapeHtml(a.name)}</a>`
+          ? `<a href="${escapeHtml(a.web_url)}" target="_blank">${escapeHtml(a.name)}</a>`
           : escapeHtml(a.name)
       ).join(', ')}</td>`;
     case 'section': {
@@ -602,7 +602,7 @@ function renderCell(row, col) {
       const meta = SECTION_META.find(s => s.key === col.key);
       const slug = meta ? meta.slug : '';
       const editUrl = slug ? `${row.web_url}#${slug}` : row.web_url;
-      const edit = `<a class="edit-link" href="${editUrl}" target="_blank" title="Edit in GitLab">✎</a>`;
+      const edit = `<a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎</a>`;
       return `<td class="markdown"><div class="preview">${preview}</div>${more}${edit}</td>`;
     }
     case 'text':
@@ -633,8 +633,8 @@ function openSection(iid, key) {
   const meta = SECTION_META.find(s => s.key === key);
   const editUrl = meta && meta.slug ? `${row.web_url}#${meta.slug}` : row.web_url;
   document.getElementById('modal-body').innerHTML =
-    `<h2>${escapeHtml(col.header)} — <a href="${row.web_url}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a>`
-    + ` <a class="edit-link" href="${editUrl}" target="_blank" title="Edit in GitLab">✎ edit</a></h2>`
+    `<h2>${escapeHtml(col.header)} — <a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a>`
+    + ` <a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎ edit</a></h2>`
     + (sec.html || '<em>(empty)</em>');
   document.getElementById('modal').classList.remove('hidden');
 }

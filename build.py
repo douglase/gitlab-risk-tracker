@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import markdown as md_lib
+import nh3
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -111,12 +112,37 @@ _MD = md_lib.Markdown(
     output_format="html5",
 )
 
+# Allowlist for nh3 HTML sanitization. Issue descriptions are user-controlled
+# text, so the rendered HTML must be sanitized before it's injected into the
+# dashboard via innerHTML. Covers everything Python-Markdown can emit with
+# the extensions we enable; raw <script>, <iframe>, javascript: URLs, etc.
+# are dropped by default.
+_HTML_TAGS: set[str] = {
+    "a", "abbr", "b", "blockquote", "br", "code", "del", "em",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "hr", "i", "img", "ins", "li", "ol", "p", "pre", "strong",
+    "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul",
+}
+_HTML_ATTRS: dict[str, set[str]] = {
+    "*": {"class"},
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "th": {"align"},
+    "td": {"align"},
+}
+_URL_SCHEMES: set[str] = {"http", "https", "mailto"}
+
 
 def render_markdown(text: str | None) -> str:
     if not text:
         return ""
     _MD.reset()
-    return _MD.convert(text)
+    return nh3.clean(
+        _MD.convert(text),
+        tags=_HTML_TAGS,
+        attributes=_HTML_ATTRS,
+        url_schemes=_URL_SCHEMES,
+    )
 
 
 _TAG_RE = re.compile(r"<[^>]+>")

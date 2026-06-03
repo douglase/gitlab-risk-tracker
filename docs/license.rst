@@ -24,6 +24,8 @@ Third-party dependencies
      - BSD-3-Clause
    * - ``markdown``
      - BSD-3-Clause
+   * - ``nh3``
+     - MIT — HTML sanitizer used on rendered issue-description markdown
    * - ``sphinx`` (docs only)
      - BSD-2-Clause
    * - ``sphinx_rtd_theme`` (docs only)
