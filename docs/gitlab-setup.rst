@@ -6,11 +6,20 @@ The dashboard reads from work-item issues across a GitLab group
 configure the following on your **source** group (the group that owns
 the risks), not on the dashboard project itself.
 
+The term "source group" means the GitLab group whose issues are your
+risks. The "dashboard project" (set up in :doc:`deployment`) is a
+separate project that only holds this tool's code and publishes the
+rendered page.
+
 Custom fields
 -------------
 
 Create these custom fields on the source group, under
 **Settings → Issues → Custom fields**. Field names must match exactly.
+
+See GitLab's
+`custom fields documentation <https://docs.gitlab.com/user/work_items/custom_fields/>`_
+for how to create them and which subscription tier is required.
 
 .. list-table::
    :header-rows: 1
@@ -41,7 +50,9 @@ Labels
 ------
 
 Create these labels at the **group** level so they propagate to all
-subprojects. The dashboard categorizes labels into three groups:
+subprojects (see
+`labels <https://docs.gitlab.com/user/project/labels/>`_).
+The dashboard categorizes labels into three groups:
 
 **Subsystems** (plain labels). Edit ``SUBSYSTEMS`` in ``build.py`` if
 your subsystem set differs:
@@ -70,9 +81,10 @@ Issue description template
 ---------------------------
 
 The dashboard pulls structured content from sections of the issue
-description body. Create an issue template (e.g.
-``.gitlab/issue_templates/Risk.md`` in your source project) with the
-following canonical headings:
+description body. Create a
+`description template <https://docs.gitlab.com/user/project/description_templates/>`_
+(e.g. ``.gitlab/issue_templates/Risk.md`` in your source project) with
+the following canonical headings:
 
 .. code-block:: markdown
 
@@ -121,8 +133,10 @@ If your numbering scheme differs, edit ``RISK_PREFIX_RE`` in
 Health status (optional)
 -------------------------
 
-GitLab's built-in **Health Status** widget is read into a hidden
-"Health" column (toggle on via the Columns dropdown). Values map to:
+GitLab's built-in
+`health status <https://docs.gitlab.com/user/project/issues/managing_issues/>`_
+field is read into a hidden "Health" column (toggle on via the Columns
+dropdown). Values map to:
 
 - ``onTrack`` → green "On track"
 - ``needsAttention`` → amber "Needs attention"

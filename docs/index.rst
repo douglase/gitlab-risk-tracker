@@ -25,14 +25,41 @@ Quick start
 -----------
 
 1. Create a GitLab project to host the dashboard (default branch
-   protected, Pages enabled with "Only project members" access).
+   protected, `Pages <https://docs.gitlab.com/user/project/pages/>`_
+   enabled with "Only project members" access).
 2. Set up custom fields and labels on your source group as described in
    :doc:`gitlab-setup`.
-3. Mirror this repository into that project; configure CI/CD variables.
+3. Copy this repository into that project (see :doc:`deployment`);
+   configure CI/CD variables.
 4. Trigger the pipeline manually; verify the dashboard URL.
 5. Add a daily schedule (02:00 UTC is the suggested default).
 
 See :doc:`deployment` for the full walk-through.
+
+What you need before starting
+-----------------------------
+
+This tool relies on several GitLab features. Confirm you have them:
+
+- **A GitLab group whose issues you want to track.** Custom fields are
+  a paid-tier feature; see
+  `custom fields <https://docs.gitlab.com/user/work_items/custom_fields/>`_
+  for current availability.
+- **At least one CI/CD runner** available to the dashboard project, with
+  outbound HTTPS so it can ``pip install`` dependencies. See
+  `GitLab Runner <https://docs.gitlab.com/ci/runners/>`_. Shared
+  ("instance") runners are the simplest option if your administrator
+  has enabled them.
+- **GitLab Pages enabled on your instance.** See
+  `GitLab Pages <https://docs.gitlab.com/user/project/pages/>`_.
+
+.. note::
+
+   The documentation links here point to ``docs.gitlab.com`` (GitLab
+   SaaS). If you run a self-managed instance, the version-matched copy
+   of every page is available on your own server at
+   ``https://YOUR-GITLAB-HOST/help`` — prefer that if a feature looks
+   different from the screenshots in the public docs.
 
 Indices and tables
 ==================
