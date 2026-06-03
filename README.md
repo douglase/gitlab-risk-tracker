@@ -1,6 +1,7 @@
 # gitlab-risk-tracker
 
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Tests](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/test.yml)
 [![Docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://douglase.github.io/gitlab-risk-tracker/)
 [![License scan](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml)
 

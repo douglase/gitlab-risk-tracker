@@ -43,6 +43,12 @@ workflows only support development of the tool on GitHub):
 
    * - Workflow
      - Purpose
+   * - ``.github/workflows/test.yml``
+     - Runs ``python tests/test_build.py`` on every push and pull
+       request. Exercises the full ``build.py`` pipeline against
+       mocked GitLab data and asserts on matrix counts, history
+       append semantics, section parsing, markdown sanitization, and
+       the rendered HTML.
    * - ``.github/workflows/scancode.yml``
      - License-scan gate. Runs
        `scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_
