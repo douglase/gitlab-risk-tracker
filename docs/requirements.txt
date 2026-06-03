@@ -3,4 +3,4 @@
 # the runtime dependencies and vice versa.
 sphinx>=7.0
 sphinx_rtd_theme>=2.0
-myst-parser>=2.0
+myst-parser>=5.1.0
