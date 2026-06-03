@@ -2,7 +2,7 @@
 
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://douglase.github.io/gitlab-risk-tracker/)
-[![License scan: scancode-toolkit](https://img.shields.io/badge/license%20scan-scancode--toolkit-blueviolet)](https://github.com/aboutcode-org/scancode-toolkit)
+[![License scan](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml)
 
 GitLab Pages dashboard for risks in the `stp` group.
 
