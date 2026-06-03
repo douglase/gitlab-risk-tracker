@@ -78,7 +78,8 @@ the next section).
        pipeline to commit ``data/history.ndjson`` to the
        ``risk-history`` branch.
    * - ``RISK_GROUP_PATH``
-     - The full path of your source group, e.g. ``my-group/sub-group``
+     - The full path of your source group, e.g. ``stp`` or
+       ``my-org/risks``
      - Optional but **set it unless your group is literally named**
        ``stp`` (the built-in default). Plain variable; not a secret, so
        leave Masked/Protected off.

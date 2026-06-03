@@ -10,6 +10,15 @@ The tool is designed for engineering organizations that already track
 risks as GitLab issues with custom fields and want a single read-only
 view of "where do we stand right now and how did we get here."
 
+.. note::
+
+   The examples in this documentation use a group named ``stp`` and a
+   dashboard project named ``stp/risks-dashboard``. These are just
+   placeholders — **wherever you see** ``stp``\ **, substitute your own
+   group path** (for example ``platform/security``). The group to scan
+   is controlled by the ``RISK_GROUP_PATH`` setting; see
+   :doc:`deployment`.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents

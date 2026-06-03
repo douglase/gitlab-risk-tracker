@@ -38,9 +38,13 @@ in your working copy; it does **not** commit or push anything.
 
    export GITLAB_TOKEN=<your-token>
    export CI_SERVER_URL=https://gitlab.example.com   # your GitLab host
-   export RISK_GROUP_PATH=my-group/sub-group         # the group to scan
+   export RISK_GROUP_PATH=stp                         # change to your group
    python build.py
    xdg-open public/index.html        # or: open public/index.html (macOS)
+
+The examples throughout this documentation use ``stp`` as the group
+name. **Wherever you see** ``stp``\ **, substitute the full path of your
+own group** (e.g. ``platform/security`` or ``my-org/risks``).
 
 .. list-table::
    :header-rows: 1
@@ -56,9 +60,9 @@ in your working copy; it does **not** commit or push anything.
        set automatically; you only set it for local runs. ``GITLAB_URL``
        is accepted as an alias.)
    * - ``RISK_GROUP_PATH``
-     - Full path of the group to scan, e.g. ``my-group/sub-group``.
-       Defaults to ``stp`` if unset, so set it unless your group really
-       is named ``stp``.
+     - Full path of the group to scan, e.g. ``stp`` or
+       ``my-org/risks``. Defaults to ``stp`` if unset, so set it unless
+       your group really is named ``stp``.
 
 Running the tests
 -----------------
