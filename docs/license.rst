@@ -44,3 +44,13 @@ https://www.nasa.gov/wp-content/uploads/2023/08/nasa-risk-mgmt-handbook.pdf
 
 NASA publications authored by US federal employees in the course of
 their duties are in the public domain in the United States.
+
+Enforced license scanning
+-------------------------
+
+A GitHub Actions workflow (`.github/workflows/scancode.yml`) runs
+`aboutcode-org/scancode-action` on every push and pull request, then
+runs ``scripts/check_scancode_allowlist.py`` which fails the build
+if any detected license key is outside the project's allowlist.
+The allowlist is the dictionary at the top of that script; to add a
+new acceptable license, edit the dictionary with a one-line rationale.
