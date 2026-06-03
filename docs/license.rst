@@ -50,12 +50,25 @@ their duties are in the public domain in the United States.
 Enforced license scanning
 -------------------------
 
-A GitHub Actions workflow (``.github/workflows/scancode.yml``) installs
-a pinned version of the
-`scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_
-on every push and pull request, runs a license + copyright scan over
-the working tree, and then runs ``scripts/check_scancode_allowlist.py``
-which fails the build if any detected license key is outside the
-project's allowlist. The allowlist is the dictionary at the top of
-that script; to add a new acceptable license, edit the dictionary with
-a one-line rationale.
+GPL-3.0 imposes obligations on derivative works, and accidentally
+pulling in code under a GPL-incompatible license (or unlabeled code of
+unknown provenance) would put downstream users in a difficult position.
+To make sure that does not happen quietly, every push and pull request
+runs an automated license + copyright scan and fails the build if
+anything unexpected is found.
+
+The workflow (``.github/workflows/scancode.yml``):
+
+1. Installs a pinned version of
+   `scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_
+   from PyPI.
+2. Runs ``scancode --license --copyright --info`` over the working
+   tree (excluding build artifacts).
+3. Hands the JSON report to ``scripts/check_scancode_allowlist.py``,
+   which compares every detected license key against an allowlist and
+   exits non-zero on any unrecognized key.
+
+The allowlist is the dictionary at the top of
+``scripts/check_scancode_allowlist.py``; to add a new acceptable
+license, edit the dictionary with a one-line rationale and the
+workflow turns green again.

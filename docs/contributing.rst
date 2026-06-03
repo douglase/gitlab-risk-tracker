@@ -30,6 +30,37 @@ The test suite mocks the GitLab GraphQL responses, exercises the full
 semantics, and section parsing. Sample risks are based on examples
 from the NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A).
 
+Continuous integration
+----------------------
+
+Two GitHub Actions workflows run on this repository (note that the
+production dashboard pipeline itself runs on **GitLab**; these
+workflows only support development of the tool on GitHub):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Workflow
+     - Purpose
+   * - ``.github/workflows/scancode.yml``
+     - License-scan gate. Runs
+       `scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_
+       on every push and pull request and fails the build if any
+       detected license is outside the allowlist in
+       ``scripts/check_scancode_allowlist.py``. Protects the GPL-3.0
+       release from accidentally absorbing incompatibly-licensed code;
+       see :doc:`license` for details and how to extend the allowlist.
+   * - ``.github/workflows/docs.yml``
+     - Documentation publisher. On push to ``main``, builds this
+       Sphinx site under ``docs/`` and deploys the HTML to the
+       ``gh-pages`` branch, which GitHub Pages then serves at the
+       project's docs URL. Builds run with ``-W`` (warnings treated
+       as errors) so doc-syntax regressions block the deploy.
+
+Dependency updates for both workflows (and for ``requirements.txt``)
+arrive as PRs via ``.github/dependabot.yml``.
+
 Adding a heading synonym
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
