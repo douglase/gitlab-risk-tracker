@@ -1,0 +1,6 @@
+# Sphinx documentation build dependencies. Kept separate from
+# the runtime requirements.txt so the docs build doesn't pull in
+# the runtime dependencies and vice versa.
+sphinx>=7.0
+sphinx_rtd_theme>=2.0
+myst-parser>=2.0

@@ -1,0 +1,21 @@
+# Dependabot configuration.
+# Watches GitHub Actions versions used in .github/workflows/ and the
+# Python runtime dependencies in requirements.txt. Updates arrive as
+# PRs that the reviewer can vet and merge.
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - github-actions
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - python

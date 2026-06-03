@@ -5,17 +5,23 @@ field values to data/history.ndjson, and renders public/index.html.
 
 Designed to run inside a GitLab CI job; can also run locally with
 GITLAB_TOKEN and (optionally) CI_SERVER_URL exported.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2026 Ewan Douglas and contributors
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import markdown as md_lib
+import nh3
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -33,6 +39,148 @@ CF_PRIORITY = "Priority Level"
 CF_RISK_TYPE = "Risk Type"
 
 PAGE_SIZE = 100
+
+RISK_PREFIX_RE = re.compile(
+    r"^\s*risk\s*#\s*[A-Z0-9]+\s*[:\-–—]?\s*",
+    re.IGNORECASE,
+)
+
+# Regex patterns identifying product labels. Any label matching one of these
+# regexes (case-insensitive) is collected into the combined "Product" filter.
+PRODUCT_PATTERNS: list[str] = [
+    r"^TO\d",
+    r"^ESC",
+    r"^WCC",
+]
+PRODUCT_REGEXES = [re.compile(p, re.IGNORECASE) for p in PRODUCT_PATTERNS]
+
+
+def match_products(labels: list[str]) -> list[str]:
+    matched = {l for l in labels if any(r.match(l) for r in PRODUCT_REGEXES)}
+    return sorted(matched)
+
+
+MAX_PREVIEW_CHARS = 280
+
+HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
+
+# Canonical section keys + accepted heading synonyms (normalized form).
+CANONICAL_SECTIONS: list[tuple[str, str, list[str]]] = [
+    ("risk_description", "Risk Description",
+     ["risk description", "description", "summary"]),
+    ("action_plan", "Notes",
+     ["notes"]),
+    ("risk_mitigation", "Mitigation Plan",
+     ["mitigation plan", "risk mitigation planning", "risk mitigation",
+      "mitigation", "plan", "planning"]),
+]
+
+
+def _normalize_heading(heading: str) -> str:
+    s = heading.strip().rstrip(":").lower()
+    s = re.sub(r"\s*/\s*", " / ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _canonical_section_key(heading: str) -> str | None:
+    norm = _normalize_heading(heading)
+    for key, _, syns in CANONICAL_SECTIONS:
+        if norm in syns:
+            return key
+    return None
+
+
+def parse_sections(markdown_text: str | None) -> dict[str, str]:
+    """Parse markdown into {canonical_key: raw_markdown_content}."""
+    if not markdown_text:
+        return {}
+    sections: dict[str, str] = {}
+    matches = list(HEADING_RE.finditer(markdown_text))
+    for i, m in enumerate(matches):
+        key = _canonical_section_key(m.group(2))
+        if not key:
+            continue
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_text)
+        sections[key] = markdown_text[start:end].strip()
+    return sections
+
+
+_MD = md_lib.Markdown(
+    extensions=["fenced_code", "tables", "nl2br", "sane_lists"],
+    output_format="html5",
+)
+
+# Allowlist for nh3 HTML sanitization. Issue descriptions are user-controlled
+# text, so the rendered HTML must be sanitized before it's injected into the
+# dashboard via innerHTML. Covers everything Python-Markdown can emit with
+# the extensions we enable; raw <script>, <iframe>, javascript: URLs, etc.
+# are dropped by default.
+_HTML_TAGS: set[str] = {
+    "a", "abbr", "b", "blockquote", "br", "code", "del", "em",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "hr", "i", "img", "ins", "li", "ol", "p", "pre", "strong",
+    "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul",
+}
+_HTML_ATTRS: dict[str, set[str]] = {
+    "*": {"class"},
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "th": {"align"},
+    "td": {"align"},
+}
+_URL_SCHEMES: set[str] = {"http", "https", "mailto"}
+
+
+def render_markdown(text: str | None) -> str:
+    if not text:
+        return ""
+    _MD.reset()
+    return nh3.clean(
+        _MD.convert(text),
+        tags=_HTML_TAGS,
+        attributes=_HTML_ATTRS,
+        url_schemes=_URL_SCHEMES,
+    )
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def plain_text(html: str) -> str:
+    return _WS_RE.sub(" ", _TAG_RE.sub("", html or "")).strip()
+
+
+def truncate_preview(text: str, n: int = MAX_PREVIEW_CHARS) -> tuple[str, bool]:
+    text = (text or "").strip()
+    if len(text) <= n:
+        return text, False
+    return text[:n].rstrip() + "…", True
+
+
+def render_section(md_text: str | None) -> dict:
+    html = render_markdown(md_text)
+    full = plain_text(html)
+    preview, has_more = truncate_preview(full)
+    return {"html": html, "preview": preview, "full_text": full, "has_more": has_more}
+
+
+_SLUG_NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _slugify(s: str) -> str:
+    """Match GitLab's heading-id slug for a header text (lowercase,
+    non-alphanumerics collapsed to dashes, stripped)."""
+    return _SLUG_NON_ALNUM.sub("-", s).strip("-").lower()
+
+
+def clean_title(title: str | None) -> str:
+    if not title:
+        return ""
+    stripped = RISK_PREFIX_RE.sub("", title).strip()
+    return stripped or title.strip()
 
 
 def gitlab_url() -> str:
@@ -141,6 +289,20 @@ query($group: ID!, $cursor: String) {
             type
             labels { nodes { title } }
           }
+          ... on WorkItemWidgetDescription {
+            type
+            description
+          }
+          ... on WorkItemWidgetAssignees {
+            type
+            assignees {
+              nodes { id username name webUrl }
+            }
+          }
+          ... on WorkItemWidgetHealthStatus {
+            type
+            healthStatus
+          }
           ... on WorkItemWidgetCustomFields {
             type
             customFieldValues {
@@ -206,17 +368,36 @@ def to_int(value) -> int | None:
 def normalize(item: dict) -> dict:
     labels: list[str] = []
     cf_values: list = []
+    description: str = ""
+    assignees: list[dict] = []
+    health_status: str | None = None
     for w in item.get("widgets") or []:
         wtype = w.get("type")
         if wtype == "LABELS":
             labels = [n["title"] for n in (w.get("labels") or {}).get("nodes", [])]
+        elif wtype == "DESCRIPTION":
+            description = w.get("description") or ""
+        elif wtype == "ASSIGNEES":
+            assignees = [
+                {
+                    "name": (n.get("name") or n.get("username") or "").strip(),
+                    "username": n.get("username"),
+                    "web_url": n.get("webUrl"),
+                }
+                for n in (w.get("assignees") or {}).get("nodes", [])
+            ]
+        elif wtype == "HEALTH_STATUS":
+            health_status = w.get("healthStatus")
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
+    products = match_products(labels)
+    other_labels = sorted(set(labels) - set(SUBSYSTEMS) - set(products))
     return {
         "id": item["id"],
         "iid": item["iid"],
         "title": item["title"],
+        "display_title": clean_title(item["title"]),
         "state": item["state"].lower(),
         "web_url": item["webUrl"],
         "created_at": item.get("createdAt"),
@@ -227,6 +408,12 @@ def normalize(item: dict) -> dict:
         "priority": select_value(cf_values, CF_PRIORITY),
         "risk_types": select_multi(cf_values, CF_RISK_TYPE),
         "subsystems": subsystems,
+        "products": products,
+        "other_labels": other_labels,
+        "assignees": assignees,
+        "health_status": health_status,
+        "description": description,
+        "sections": parse_sections(description),
     }
 
 
@@ -360,6 +547,57 @@ def trend_series(history: list[dict], days: int = 90) -> dict:
     return {"labels": labels, "series": series}
 
 
+def risk_score_series(history: list[dict], current_items: list[dict],
+                      days: int = 90) -> dict:
+    """Per-risk score (consequence * likelihood) over the last `days` days.
+
+    Returns one series per risk id that currently exists in `current_items`
+    and is scored. Score on a given day is null if the risk wasn't yet known
+    or was closed. Attaches current filterable attributes so the JS chart
+    can hide non-matching series when filters change.
+    """
+    today = datetime.now(timezone.utc).date()
+    start = today - timedelta(days=days - 1)
+    labels = [(start + timedelta(days=i)).isoformat() for i in range(days)]
+    by_id = {it["id"]: it for it in current_items}
+    score_by_day: dict[str, list[int | None]] = {
+        rid: [None] * days for rid in by_id
+    }
+    for i in range(days):
+        day = start + timedelta(days=i)
+        when = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=timezone.utc)
+        state = reconstruct_state_at(history, when)
+        for rid in by_id:
+            r = state.get(rid)
+            if not r or r.get("state") == "closed":
+                continue
+            c = r.get("consequence")
+            l = r.get("likelihood")
+            if c is not None and l is not None:
+                score_by_day[rid][i] = c * l
+    series: list[dict] = []
+    for rid, scores in score_by_day.items():
+        it = by_id[rid]
+        c, l = it["consequence"], it["likelihood"]
+        if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
+            continue
+        series.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "state": it["state"],
+            "subsystems": it["subsystems"],
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "products": it["products"],
+            "tier": severity_tier(c, l),
+            "current_score": c * l,
+            "scores": scores,
+        })
+    return {"labels": labels, "series": series}
+
+
 def movement(history: list[dict], days: int = 30) -> dict:
     today = datetime.now(timezone.utc).date()
     start_dt = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=days)
@@ -401,8 +639,6 @@ def build_matrix(items: list[dict]) -> dict:
     cells: dict[tuple[int, int], list[dict]] = {(c, l): [] for c in range(1, 6) for l in range(1, 6)}
     unscored: list[dict] = []
     for it in items:
-        if it["state"] == "closed":
-            continue
         c, l = it["consequence"], it["likelihood"]
         if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
             unscored.append(it)
@@ -411,13 +647,14 @@ def build_matrix(items: list[dict]) -> dict:
     return {"cells": cells, "unscored": unscored}
 
 
-def render(items: list[dict], history: list[dict]) -> None:
+def render(items: list[dict], history: list[dict], server_url: str = "") -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.filters["clean_title"] = clean_title
     tpl = env.get_template("index.html.j2")
     matrix = build_matrix(items)
     subsystem_counts = Counter()
@@ -431,16 +668,62 @@ def render(items: list[dict], history: list[dict]) -> None:
             {
                 "iid": it["iid"],
                 "title": it["title"],
+                "display_title": it["display_title"],
                 "web_url": it["web_url"],
+                "state": it["state"],
                 "subsystems": it["subsystems"],
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
+                "products": it["products"],
+                "tier": severity_tier(c, l),
             }
             for it in matrix["cells"][(c, l)]
         ]
         for c in range(1, 6)
         for l in range(1, 6)
     }
+    product_options: set[str] = set()
+    for it in items:
+        if it["state"] == "closed":
+            continue
+        product_options.update(it["products"])
+    product_options_sorted = sorted(product_options)
+
+    section_meta = [
+        {"key": key, "header": header, "slug": _slugify(header)}
+        for key, header, _ in CANONICAL_SECTIONS
+    ]
+    risks_table: list[dict] = []
+    for it in items:
+        c, l = it["consequence"], it["likelihood"]
+        if c is None or l is None or not (1 <= c <= 5 and 1 <= l <= 5):
+            continue
+        rendered_sections = {
+            key: render_section(it["sections"].get(key, ""))
+            for key, _, _ in CANONICAL_SECTIONS
+        }
+        risks_table.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "state": it["state"],
+            "consequence": c,
+            "likelihood": l,
+            "score": c * l,
+            "tier": severity_tier(c, l),
+            "created_at": it.get("created_at"),
+            "closed_at": it.get("closed_at"),
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "subsystems": it["subsystems"],
+            "products": it["products"],
+            "other_labels": it["other_labels"],
+            "assignees": it["assignees"],
+            "health_status": it["health_status"],
+            "sections": rendered_sections,
+        })
+    risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))
     html = tpl.render(
         group_path=GROUP_PATH,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -451,10 +734,17 @@ def render(items: list[dict], history: list[dict]) -> None:
         severity_tier=severity_tier,
         cells_json=json.dumps(cells_serializable),
         trends=trend_series(history),
+        risk_trends=risk_score_series(history, items),
         movement=movement(history),
         subsystem_counts=dict(subsystem_counts),
         priorities=["High", "Medium", "Low"],
         risk_types=["Technical", "Cost", "Schedule"],
+        product_options=product_options_sorted,
+        product_patterns=PRODUCT_PATTERNS,
+        server_url=server_url.rstrip("/") if server_url else "",
+        risks_table_json=json.dumps(risks_table),
+        section_meta=section_meta,
+        max_preview_chars=MAX_PREVIEW_CHARS,
     )
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     (PUBLIC_DIR / "index.html").write_text(html)
@@ -466,7 +756,7 @@ def main() -> None:
     items = [normalize(it) for it in raw]
     history = load_history()
     history = update_history(items, history)
-    render(items, history)
+    render(items, history, server_url=gitlab_url())
     print(f"Rendered public/index.html with {len(items)} work items "
           f"({sum(1 for i in items if i['state'] != 'closed')} open).")
 

@@ -1,4 +1,6 @@
 <!doctype html>
+{# SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright (C) 2026 Ewan Douglas and contributors #}
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -20,7 +22,11 @@
   .meta { color: var(--muted); margin-bottom: 1rem; }
   .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
   .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
-  .filters select, .filters input { padding: .25rem .5rem; font: inherit; }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; min-width: 140px; }
+  .filters select[multiple] { min-width: 160px; }
+  .filters .hint { font-size: 10px; color: #aaa; font-weight: normal; }
+  .filters button { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; align-self: end; }
+  .filters button:hover { background: #f5f5f5; }
   table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
   table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
   table.matrix th { background: white; font-weight: 600; text-align: center; }
@@ -33,10 +39,17 @@
   td .count { font-weight: 700; font-size: 1.2rem; }
   td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
   td ul li a { color: #1565c0; text-decoration: none; }
+  td ul li.closed a { color: var(--muted); text-decoration: line-through; }
   td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
   .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
-  .legend { display: flex; gap: .5rem; align-items: center; font-size: 12px; margin-bottom: .5rem; }
-  .legend span { padding: .1rem .5rem; border: 1px solid var(--border); border-radius: 3px; }
+  .legend { display: flex; gap: .35rem; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .legend-chip { padding: .15rem .6rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font: inherit; font-size: 12px; }
+  .legend-chip.low { background: var(--low); }
+  .legend-chip.medium { background: var(--medium); }
+  .legend-chip.high { background: var(--high); }
+  .legend-chip.critical { background: var(--critical); }
+  .legend-chip:hover { filter: brightness(0.95); }
+  .legend-chip.active { border-color: #1565c0; border-width: 2px; padding: calc(.15rem - 1px) calc(.6rem - 1px); font-weight: 600; }
   section { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
   section h2 { margin: 0 0 .75rem 0; font-size: 1rem; }
   .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -47,11 +60,55 @@
   .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
   .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
   .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
-  .bar .label { width: 110px; font-size: 12px; color: var(--muted); }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .bar a.label:hover { color: #1565c0; text-decoration: underline; }
+  table.risks td a.tag { text-decoration: none; cursor: pointer; }
+  table.risks td a.tag:hover { filter: brightness(0.95); text-decoration: underline; }
   .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
   .bar .n { font-size: 12px; color: var(--muted); }
-  .trend { width: 100%; height: 200px; }
-  .hidden { display: none; }
+  .trend { display: block; width: 100%; max-width: 1000px; height: auto; }
+  .hidden { display: none !important; }
+  .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
+  .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
+  .table-toolbar details summary { cursor: pointer; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; list-style: none; }
+  .table-toolbar details summary::-webkit-details-marker { display: none; }
+  .col-toggles { padding: .5rem; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 4px 4px; display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: .25rem .75rem; margin-top: -1px; max-width: 600px; }
+  .col-toggles label { display: flex; gap: .35rem; align-items: center; font-size: 12px; cursor: pointer; color: var(--fg); flex-direction: row; }
+  #export-csv { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; }
+  #export-csv:hover { background: #f5f5f5; }
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+  table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
+  table.risks th { background: #f5f5f5; cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  table.risks th .sort-indicator { color: var(--muted); margin-left: .25rem; font-size: 10px; }
+  table.risks th.sorted .sort-indicator { color: var(--fg); }
+  table.risks td.num { text-align: right; white-space: nowrap; }
+  table.risks td.markdown { max-width: 320px; }
+  table.risks .state-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  table.risks .state-pill.state-open { background: #e8f5e9; color: #1b5e20; }
+  table.risks .state-pill.state-closed { background: #eceff1; color: #455a64; text-decoration: line-through; }
+  table.risks .health-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  table.risks .health-pill.health-onTrack { background: #e8f5e9; color: #1b5e20; }
+  table.risks .health-pill.health-needsAttention { background: #fff8e1; color: #f57f17; }
+  table.risks .health-pill.health-atRisk { background: #ffebee; color: #b71c1c; }
+  table.risks td.markdown .preview { white-space: pre-wrap; word-wrap: break-word; }
+  table.risks td .see-more { color: #1565c0; cursor: pointer; font-size: 11px; margin-left: .25rem; }
+  table.risks td .edit-link { color: var(--muted); text-decoration: none; font-size: 12px; margin-left: .35rem; opacity: .55; }
+  table.risks td .edit-link:hover { opacity: 1; color: #1565c0; }
+  .modal-content h2 .edit-link { font-size: 14px; color: var(--muted); text-decoration: none; margin-left: .5rem; }
+  .modal-content h2 .edit-link:hover { color: #1565c0; }
+  table.risks td .tag { display: inline-block; padding: 1px 6px; background: #e3f2fd; color: #0d47a1; border-radius: 10px; font-size: 11px; margin: 1px 1px 1px 0; }
+  table.risks td .tag.subsystem { background: #f3e5f5; color: #4a148c; }
+  table.risks td .tag.other { background: #eceff1; color: #455a64; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+  .modal-content { background: white; max-width: 900px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 1.5rem 2rem; border-radius: 6px; position: relative; }
+  .modal-close { position: absolute; right: .75rem; top: .5rem; cursor: pointer; font-size: 1.75rem; line-height: 1; color: var(--muted); background: none; border: none; }
+  .modal-content h1, .modal-content h2, .modal-content h3 { margin: .75rem 0 .25rem 0; }
+  .modal-content p { margin: .5rem 0; }
+  .modal-content code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 90%; }
+  .modal-content pre { background: #f5f5f5; padding: .75rem; border-radius: 4px; overflow-x: auto; }
+  .modal-content table { border-collapse: collapse; margin: .5rem 0; }
+  .modal-content table th, .modal-content table td { border: 1px solid var(--border); padding: .25rem .5rem; }
 </style>
 </head>
 <body>
@@ -60,10 +117,16 @@
 <div class="meta">Last updated: {{ generated_at }}</div>
 
 <div class="filters">
-  <label>Subsystem
-    <select id="f-subsystem">
-      <option value="">All</option>
+  <label>Subsystem <span class="hint">(⌘/Ctrl-click for multi)</span>
+    <select id="f-subsystem" multiple size="5">
       {% for s in subsystems %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Status
+    <select id="f-status">
+      <option value="open" selected>Open</option>
+      <option value="closed">Closed</option>
+      <option value="">All</option>
     </select>
   </label>
   <label>Priority
@@ -78,11 +141,19 @@
       {% for r in risk_types %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
     </select>
   </label>
-  <span class="legend">
-    <span class="low">low (1–4)</span>
-    <span class="medium">medium (5–9)</span>
-    <span class="high">high (10–15)</span>
-    <span class="critical">critical (16–25)</span>
+  {% if product_options %}
+  <label>Product <span class="hint">(multi · matches {{ product_patterns | join(', ') }})</span>
+    <select id="f-products" multiple size="5">
+      {% for v in product_options %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <button type="button" id="clear-filters">Clear filters</button>
+  <span class="legend" title="Click a tier to filter (multi-select)">
+    <button type="button" class="legend-chip low"      data-tier="low">low (1–4)</button>
+    <button type="button" class="legend-chip medium"   data-tier="medium">medium (5–9)</button>
+    <button type="button" class="legend-chip high"     data-tier="high">high (10–15)</button>
+    <button type="button" class="legend-chip critical" data-tier="critical">critical (16–25)</button>
   </span>
 </div>
 
@@ -103,13 +174,8 @@
       {% set issues = matrix.cells[(c, l)] %}
       {% set tier = severity_tier(c, l) %}
       <td class="{{ tier }}" data-cell="{{ c }}-{{ l }}" onclick="selectCell('{{ c }}-{{ l }}')">
-        <div class="count">{{ issues | length }}</div>
-        <ul>
-        {% for it in issues[:4] %}
-          <li><a href="{{ it.web_url }}" target="_blank">#{{ it.iid }}</a> {{ it.title | truncate(28) }}</li>
-        {% endfor %}
-        {% if issues | length > 4 %}<li>… +{{ issues | length - 4 }} more</li>{% endif %}
-        </ul>
+        <div class="count">0</div>
+        <ul></ul>
       </td>
     {% endfor %}
   </tr>
@@ -126,7 +192,12 @@
 
 <section>
   <h2>Trend — issues by severity tier (last 90 days)</h2>
-  <svg class="trend" id="trend-chart" viewBox="0 0 800 200" preserveAspectRatio="none"></svg>
+  <svg class="trend" id="trend-chart" viewBox="0 0 800 200"></svg>
+</section>
+
+<section>
+  <h2>Per-risk score (C×L) — <span id="risk-trend-count">0</span> series, last 90 days</h2>
+  <svg class="trend" id="risk-trend-chart" viewBox="0 0 800 260"></svg>
 </section>
 
 <section>
@@ -142,7 +213,7 @@
     </div>
     <div class="card">
       <h3>✚ New ({{ movement.new | length }})</h3>
-      <ul>{% for r in movement.new[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a> {{ r.title | truncate(40) }}</li>{% endfor %}</ul>
+      <ul>{% for r in movement.new[:10] %}<li><a href="{{ r.web_url }}" target="_blank">{{ r.title | clean_title | truncate(45) }}</a></li>{% endfor %}</ul>
     </div>
     <div class="card">
       <h3>✔ Closed ({{ movement.closed | length }})</h3>
@@ -157,82 +228,482 @@
   {% for s in subsystems %}
     {% set n = subsystem_counts.get(s, 0) %}
     <div class="bar">
+      {% if server_url %}
+      <a class="label" href="{{ server_url }}/groups/{{ group_path | urlencode }}/-/issues?label_name%5B%5D={{ s | urlencode }}" target="_blank" title="Search issues with this label">{{ s }}</a>
+      {% else %}
       <span class="label">{{ s }}</span>
+      {% endif %}
       <div class="fill" style="width: {{ (n / max_count * 300) | round }}px;"></div>
       <span class="n">{{ n }}</span>
     </div>
   {% endfor %}
 </section>
 
+<section class="risks-section">
+  <h2>Risks (<span class="row-count" id="row-count">0</span>)</h2>
+  <div class="table-toolbar">
+    <details>
+      <summary>Columns ▾</summary>
+      <div class="col-toggles" id="col-toggles"></div>
+    </details>
+    <button type="button" id="export-csv">Export CSV</button>
+  </div>
+  <div class="table-wrap">
+    <table class="risks" id="risks-table">
+      <thead><tr id="risks-thead"></tr></thead>
+      <tbody id="risks-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-content">
+    <button class="modal-close" type="button" onclick="closeModal()">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 const cells = {{ cells_json | safe }};
 const trends = {{ trends | tojson }};
+const riskTrends = {{ risk_trends | tojson }};
+const risks = {{ risks_table_json | safe }};
+const SECTION_META = {{ section_meta | tojson }};
+const SERVER_URL = {{ server_url | tojson }};
+const GROUP_PATH = {{ group_path | tojson }};
+
+function labelUrl(label) {
+  if (!SERVER_URL) return '#';
+  return `${SERVER_URL}/groups/${encodeURIComponent(GROUP_PATH)}/-/issues?label_name%5B%5D=${encodeURIComponent(label)}`;
+}
+
+const MAX_TITLE_CHARS = 38;
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function getMulti(id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+const selectedTiers = new Set();
+
+function currentFilter() {
+  return {
+    status:   document.getElementById('f-status').value,
+    subs:     getMulti('f-subsystem'),
+    pri:      document.getElementById('f-priority').value,
+    rt:       document.getElementById('f-risktype').value,
+    products: getMulti('f-products'),
+    tiers:    Array.from(selectedTiers),
+  };
+}
+
+function matchesFilter(item, f) {
+  if (f.status && item.state !== f.status) return false;
+  if (f.subs.length && !f.subs.some(s => (item.subsystems || []).includes(s))) return false;
+  if (f.pri && item.priority !== f.pri) return false;
+  if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
+  if (f.products.length && !f.products.some(p => (item.products || []).includes(p))) return false;
+  if (f.tiers.length && !f.tiers.includes(item.tier)) return false;
+  return true;
+}
+
+let selectedKey = null;
 
 function selectCell(key) {
+  selectedKey = key;
   document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
   const td = document.querySelector(`td[data-cell="${key}"]`);
   if (td) td.classList.add('selected');
-  const issues = cells[key] || [];
-  const [c, l] = key.split('-');
-  document.getElementById('detail-label').textContent = `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
+  renderDetail();
+}
+
+function renderDetail() {
+  if (!selectedKey) return;
+  const f = currentFilter();
+  const issues = (cells[selectedKey] || []).filter(i => matchesFilter(i, f));
+  const [c, l] = selectedKey.split('-');
+  document.getElementById('detail-label').textContent =
+    `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
   const body = document.getElementById('detail-body');
   body.innerHTML = issues.map(i =>
-    `<tr><td><a href="${i.web_url}" target="_blank">#${i.iid}</a></td><td>${i.title}</td></tr>`
-  ).join('') || '<tr><td colspan="2" style="color:#999">No issues in this cell</td></tr>';
+    `<tr><td><a href="${escapeHtml(i.web_url)}" target="_blank">#${escapeHtml(i.iid)}</a></td>` +
+    `<td>${escapeHtml(i.display_title || i.title)}</td></tr>`
+  ).join('') || '<tr><td colspan="2" style="color:#999">No issues match the current filter</td></tr>';
   document.getElementById('detail-section').classList.remove('hidden');
 }
 
 function drawTrend() {
   const svg = document.getElementById('trend-chart');
-  const W = 800, H = 200, PAD_L = 30, PAD_B = 20;
+  const W = 800, H = 200, PAD_L = 30, PAD_B = 20, PAD_R = 80;
   const tiers = ['low', 'medium', 'high', 'critical'];
   const colors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
   const N = trends.labels.length;
   if (N === 0) return;
   let maxY = 1;
   tiers.forEach(t => trends.series[t].forEach(v => { if (v > maxY) maxY = v; }));
-  const xStep = (W - PAD_L) / Math.max(N - 1, 1);
+  const plotRight = W - PAD_R;
+  const xStep = (plotRight - PAD_L) / Math.max(N - 1, 1);
   const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
   let svgInner = '';
   tiers.forEach(t => {
     const pts = trends.series[t].map((v, i) => `${PAD_L + i * xStep},${yScale(v)}`).join(' ');
     svgInner += `<polyline fill="none" stroke="${colors[t]}" stroke-width="2" points="${pts}"/>`;
   });
-  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${W}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
   svgInner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
-  svgInner += `<text x="${W - 5}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
+  // Current-value labels just past the right edge of each line.
+  tiers.forEach(t => {
+    const last = trends.series[t][N - 1] || 0;
+    const y = yScale(last);
+    svgInner += `<circle cx="${plotRight}" cy="${y}" r="2.5" fill="${colors[t]}"/>`;
+    svgInner += `<text x="${plotRight + 6}" y="${y + 3.5}" font-size="11" fill="${colors[t]}" font-weight="600">${t}: ${last}</text>`;
+  });
+  svgInner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
   svgInner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${trends.labels[0]}</text>`;
   svgInner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
-  let lx = PAD_L + 10;
-  tiers.forEach(t => {
-    svgInner += `<rect x="${lx}" y="6" width="10" height="10" fill="${colors[t]}"/>`;
-    svgInner += `<text x="${lx + 14}" y="15" font-size="11" fill="#444">${t}</text>`;
-    lx += 80;
-  });
   svg.innerHTML = svgInner;
 }
 
+function drawRiskTrends() {
+  const svg = document.getElementById('risk-trend-chart');
+  const W = 800, H = 260, PAD_L = 30, PAD_B = 20, PAD_R = 240;
+  const tierColors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
+  const f = currentFilter();
+  const series = riskTrends.series.filter(s => matchesFilter(s, f));
+  document.getElementById('risk-trend-count').textContent = series.length;
+  const N = riskTrends.labels.length;
+  if (N === 0 || series.length === 0) { svg.innerHTML = ''; return; }
+  let maxY = 5;
+  series.forEach(s => s.scores.forEach(v => { if (v != null && v > maxY) maxY = v; }));
+  const plotRight = W - PAD_R;
+  const xStep = (plotRight - PAD_L) / Math.max(N - 1, 1);
+  const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
+  let inner = '';
+  // Draw lines (skip null gaps).
+  series.forEach(s => {
+    let segs = [], cur = [];
+    s.scores.forEach((v, i) => {
+      if (v == null) { if (cur.length) { segs.push(cur); cur = []; } }
+      else cur.push(`${PAD_L + i * xStep},${yScale(v)}`);
+    });
+    if (cur.length) segs.push(cur);
+    const color = tierColors[s.tier] || '#9e9e9e';
+    segs.forEach(seg => {
+      inner += `<polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.85" points="${seg.join(' ')}"/>`;
+    });
+  });
+  // Axes.
+  inner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
+  inner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
+  // Right-edge labels: ID + score, packed vertically and sorted by last value.
+  const ordered = series.slice().sort((a, b) => {
+    const av = a.scores[N - 1], bv = b.scores[N - 1];
+    return (bv == null ? -1 : bv) - (av == null ? -1 : av);
+  });
+  const maxLabels = Math.floor((H - 30) / 12);
+  ordered.slice(0, maxLabels).forEach((s, i) => {
+    const last = s.scores[N - 1];
+    const ny = 12 + i * 12;
+    const color = tierColors[s.tier] || '#666';
+    const lastVal = last != null ? last : '–';
+    const title = (s.display_title || s.title || '').slice(0, 28);
+    inner += `<a href="${escapeHtml(s.web_url)}" target="_blank"><text x="${plotRight + 6}" y="${ny}" font-size="10" fill="${color}">#${escapeHtml(String(s.iid))} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text></a>`;
+  });
+  if (ordered.length > maxLabels) {
+    inner += `<text x="${plotRight + 6}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
+  }
+  // Date + max-Y axes labels.
+  inner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${riskTrends.labels[N - 1]}</text>`;
+  inner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${riskTrends.labels[0]}</text>`;
+  inner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
+  svg.innerHTML = inner;
+}
+
 function applyFilters() {
-  const sub = document.getElementById('f-subsystem').value;
-  const pri = document.getElementById('f-priority').value;
-  const rt  = document.getElementById('f-risktype').value;
+  const f = currentFilter();
   document.querySelectorAll('table.matrix td[data-cell]').forEach(td => {
     const key = td.dataset.cell;
     const all = cells[key] || [];
-    const filtered = all.filter(i => {
-      if (sub && !(i.subsystems || []).includes(sub)) return false;
-      if (pri && i.priority !== pri) return false;
-      if (rt && !(i.risk_types || []).includes(rt)) return false;
-      return true;
+    const filtered = all.filter(i => matchesFilter(i, f));
+    td.querySelector('.count').textContent = filtered.length;
+    const head = filtered.slice(0, 4).map(i => {
+      const title = i.display_title || i.title || '';
+      const cls = i.state === 'closed' ? ' class="closed"' : '';
+      return `<li${cls}><a href="${escapeHtml(i.web_url)}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+    }).join('');
+    const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
+    td.querySelector('ul').innerHTML = head + tail;
+  });
+  renderDetail();
+  renderTable();
+  drawRiskTrends();
+}
+
+// === Risks table ===
+
+const SECTION_KEYS = SECTION_META.map(s => s.key);
+const COLUMNS = [
+  { key: 'iid',           header: 'ID',         kind: 'link' },
+  { key: 'display_title', header: 'Title',      kind: 'title' },
+  { key: 'state',         header: 'Status',     kind: 'state' },
+  { key: 'health_status', header: 'Health',     kind: 'health', defaultHidden: true },
+  { key: 'created_at',    header: 'Opened',     kind: 'date', defaultHidden: true },
+  { key: 'closed_at',     header: 'Closed',     kind: 'date', defaultHidden: true },
+  { key: 'consequence',   header: 'C',          kind: 'num' },
+  { key: 'likelihood',    header: 'L',          kind: 'num' },
+  { key: 'score',         header: 'Score',      kind: 'num' },
+  { key: 'priority',      header: 'Priority',   kind: 'text' },
+  { key: 'risk_types',    header: 'Risk Type',  kind: 'tags' },
+  { key: 'subsystems',    header: 'Subsystems', kind: 'labels-subsystem' },
+  { key: 'products',      header: 'Product',    kind: 'labels-product' },
+  { key: 'assignees',     header: 'Owner',      kind: 'assignees' },
+  ...SECTION_META.map(s => ({ key: s.key, header: s.header, kind: 'section' })),
+  { key: 'other_labels',  header: 'Other labels', kind: 'labels-other' },
+];
+
+const COL_STATE_KEY = 'risks-cols-v1';
+const SORT_STATE_KEY = 'risks-sort-v1';
+
+function getColState() {
+  try { return JSON.parse(localStorage.getItem(COL_STATE_KEY)) || {}; }
+  catch { return {}; }
+}
+function setColState(s) {
+  try { localStorage.setItem(COL_STATE_KEY, JSON.stringify(s)); } catch {}
+}
+function isColVisible(col) {
+  const s = getColState();
+  if (Object.prototype.hasOwnProperty.call(s, col.key)) return s[col.key];
+  return !col.defaultHidden;
+}
+
+let sortState;
+try { sortState = JSON.parse(localStorage.getItem(SORT_STATE_KEY)); } catch {}
+if (!sortState || !sortState.key) sortState = { key: 'score', dir: 'desc' };
+
+function renderColToggles() {
+  const wrap = document.getElementById('col-toggles');
+  wrap.innerHTML = COLUMNS.map(c => `
+    <label><input type="checkbox" data-col="${c.key}"${isColVisible(c) ? ' checked' : ''}> ${escapeHtml(c.header)}</label>
+  `).join('');
+  wrap.querySelectorAll('input').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const s = getColState();
+      s[cb.dataset.col] = cb.checked;
+      setColState(s);
+      renderTable();
     });
-    const count = td.querySelector('.count');
-    if (count) count.textContent = filtered.length;
   });
 }
 
-document.getElementById('f-subsystem').addEventListener('change', applyFilters);
-document.getElementById('f-priority').addEventListener('change', applyFilters);
-document.getElementById('f-risktype').addEventListener('change', applyFilters);
+function renderThead() {
+  const tr = document.getElementById('risks-thead');
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  tr.innerHTML = cols.map(c => {
+    const sorted = sortState.key === c.key;
+    const ind = sorted ? (sortState.dir === 'desc' ? '↓' : '↑') : '↕';
+    return `<th data-sort="${c.key}" class="${sorted ? 'sorted' : ''}">${escapeHtml(c.header)}<span class="sort-indicator">${ind}</span></th>`;
+  }).join('');
+  tr.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      if (sortState.key === k) {
+        sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        sortState.key = k; sortState.dir = 'desc';
+      }
+      try { localStorage.setItem(SORT_STATE_KEY, JSON.stringify(sortState)); } catch {}
+      renderTable();
+    });
+  });
+}
+
+function sortValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
+    return (row[col.key] || []).join(', ');
+  }
+  return row[col.key] != null ? row[col.key] : '';
+}
+
+function sortRows(rows) {
+  const col = COLUMNS.find(c => c.key === sortState.key) || COLUMNS.find(c => c.key === 'score');
+  const dir = sortState.dir === 'desc' ? -1 : 1;
+  return rows.slice().sort((a, b) => {
+    let va = sortValue(a, col), vb = sortValue(b, col);
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    return 0;
+  });
+}
+
+function renderCell(row, col) {
+  switch (col.kind) {
+    case 'link':
+      return `<td class="num"><a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)}</a></td>`;
+    case 'title':
+      return `<td><a href="${escapeHtml(row.web_url)}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`;
+    case 'num':
+      return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
+    case 'state': {
+      const s = row.state || '';
+      const label = s.charAt(0).toUpperCase() + s.slice(1);
+      return `<td><span class="state-pill state-${escapeHtml(s)}">${escapeHtml(label)}</span></td>`;
+    }
+    case 'date': {
+      const v = row[col.key];
+      return `<td class="num">${v ? escapeHtml(String(v).slice(0, 10)) : ''}</td>`;
+    }
+    case 'health': {
+      const h = row.health_status;
+      if (!h) return '<td></td>';
+      const labels = { onTrack: 'On track', needsAttention: 'Needs attention', atRisk: 'At risk' };
+      return `<td><span class="health-pill health-${escapeHtml(h)}">${escapeHtml(labels[h] || h)}</span></td>`;
+    }
+    case 'tags':
+      return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
+    case 'labels-subsystem':
+    case 'labels-product':
+    case 'labels-other': {
+      const cls = col.kind === 'labels-subsystem' ? 'tag subsystem'
+                : col.kind === 'labels-other'     ? 'tag other'
+                : 'tag';
+      return `<td>${(row[col.key] || []).map(t =>
+        `<a class="${cls}" href="${labelUrl(t)}" target="_blank" title="Search issues with this label">${escapeHtml(t)}</a>`
+      ).join('')}</td>`;
+    }
+    case 'assignees':
+      return `<td>${(row.assignees || []).map(a =>
+        a.web_url
+          ? `<a href="${escapeHtml(a.web_url)}" target="_blank">${escapeHtml(a.name)}</a>`
+          : escapeHtml(a.name)
+      ).join(', ')}</td>`;
+    case 'section': {
+      const sec = (row.sections || {})[col.key] || {};
+      const preview = escapeHtml(sec.preview || '');
+      const more = sec.has_more
+        ? ` <a class="see-more" data-iid="${escapeHtml(row.iid)}" data-key="${col.key}">see more</a>`
+        : '';
+      const meta = SECTION_META.find(s => s.key === col.key);
+      const slug = meta ? meta.slug : '';
+      const editUrl = slug ? `${row.web_url}#${slug}` : row.web_url;
+      const edit = `<a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎</a>`;
+      return `<td class="markdown"><div class="preview">${preview}</div>${more}${edit}</td>`;
+    }
+    case 'text':
+    default:
+      return `<td>${escapeHtml(row[col.key] != null ? String(row[col.key]) : '')}</td>`;
+  }
+}
+
+function renderTable() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  document.getElementById('row-count').textContent = sorted.length;
+  renderThead();
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  const tbody = document.getElementById('risks-tbody');
+  tbody.innerHTML = sorted.map(row => '<tr>' + cols.map(c => renderCell(row, c)).join('') + '</tr>').join('');
+  tbody.querySelectorAll('a.see-more').forEach(a => {
+    a.addEventListener('click', () => openSection(a.dataset.iid, a.dataset.key));
+  });
+}
+
+function openSection(iid, key) {
+  const row = risks.find(r => String(r.iid) === String(iid));
+  if (!row) return;
+  const sec = (row.sections || {})[key] || {};
+  const col = COLUMNS.find(c => c.key === key);
+  const meta = SECTION_META.find(s => s.key === key);
+  const editUrl = meta && meta.slug ? `${row.web_url}#${meta.slug}` : row.web_url;
+  document.getElementById('modal-body').innerHTML =
+    `<h2>${escapeHtml(col.header)} — <a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a>`
+    + ` <a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎ edit</a></h2>`
+    + (sec.html || '<em>(empty)</em>');
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target.id === 'modal') closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function csvCell(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function csvValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
+    return (row[col.key] || []).join(', ');
+  }
+  if (col.kind === 'link') return `#${row.iid}`;
+  if (col.kind === 'title') return row.display_title || row.title || '';
+  if (col.kind === 'health') return row.health_status || '';
+  return row[col.key] != null ? row[col.key] : '';
+}
+function exportCsv() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  // Always include a GitLab Link column at the end (full URL).
+  const header = cols.map(c => csvCell(c.header)).concat(['GitLab Link']).join(',');
+  const rows = sorted.map(r =>
+    cols.map(c => csvCell(csvValue(r, c))).concat([csvCell(r.web_url)]).join(',')
+  );
+  const csv = '﻿' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'risks-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+document.getElementById('export-csv').addEventListener('click', exportCsv);
+
+document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
+document.querySelectorAll('.legend-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tier;
+    if (selectedTiers.has(t)) { selectedTiers.delete(t); btn.classList.remove('active'); }
+    else { selectedTiers.add(t); btn.classList.add('active'); }
+    applyFilters();
+  });
+});
+document.getElementById('clear-filters').addEventListener('click', () => {
+  document.querySelectorAll('.filters select').forEach(el => {
+    Array.from(el.options).forEach(o => o.selected = false);
+    if (!el.multiple) el.value = '';
+  });
+  selectedTiers.clear();
+  document.querySelectorAll('.legend-chip').forEach(c => c.classList.remove('active'));
+  applyFilters();
+});
+renderColToggles();
+applyFilters();
 drawTrend();
 </script>
 

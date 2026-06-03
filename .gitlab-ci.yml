@@ -3,22 +3,65 @@ pages:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
+  variables:
+    HISTORY_BRANCH: risk-history
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
     - pip install --no-cache-dir -r requirements.txt
   script:
-    - python build.py
-    - git config user.email "risks-dashboard-bot@${CI_SERVER_HOST}"
-    - git config user.name "risks-dashboard-bot"
-    - git add data/history.ndjson
     - |
-      if git diff --cached --quiet; then
-        echo "No history changes to commit."
+      mkdir -p data
+      if git fetch origin "${HISTORY_BRANCH}" 2>/dev/null; then
+        if git show "origin/${HISTORY_BRANCH}:data/history.ndjson" > data/history.ndjson 2>/dev/null; then
+          echo "Loaded $(wc -l < data/history.ndjson) prior history rows from ${HISTORY_BRANCH}."
+        else
+          echo "${HISTORY_BRANCH} branch exists but has no data/history.ndjson yet."
+        fi
       else
-        git commit -m "snapshot: $(date -u +%F) [skip ci]"
-        git push -o ci.skip \
-          "https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
-          "HEAD:${CI_DEFAULT_BRANCH}"
+        echo "No ${HISTORY_BRANCH} branch yet — first run, starting fresh."
+      fi
+    - python build.py
+    - |
+      if [ -z "${PUSH_TOKEN}" ]; then
+        echo "ERROR: PUSH_TOKEN is empty or unset."
+        echo "  Settings -> CI/CD -> Variables: confirm PUSH_TOKEN exists with a value."
+        echo "  If 'Protected' is checked, the current branch must be a protected branch."
+        exit 1
+      fi
+      echo "PUSH_TOKEN length: ${#PUSH_TOKEN}"
+    - |
+      PUSH_URL="https://oauth2:${PUSH_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/${CI_PROJECT_PATH}.git"
+      WORK=$(mktemp -d)
+      cd "${WORK}"
+      git init -q
+      git config user.email "risks-dashboard-bot@${CI_SERVER_HOST}"
+      git config user.name "risks-dashboard-bot"
+      git remote add origin "${PUSH_URL}"
+      if git fetch --depth=1 origin "${HISTORY_BRANCH}" 2>/dev/null; then
+        git checkout -q FETCH_HEAD
+        git checkout -q -B "${HISTORY_BRANCH}"
+      else
+        echo "Creating ${HISTORY_BRANCH} branch."
+        git checkout -q -b "${HISTORY_BRANCH}"
+      fi
+      mkdir -p data
+      cp "${CI_PROJECT_DIR}/data/history.ndjson" data/history.ndjson
+      git add data/history.ndjson
+      if git diff --cached --quiet; then
+        echo "No history changes to push."
+      else
+        git commit -q -m "snapshot: $(date -u +%F)"
+        if ! git push origin "${HISTORY_BRANCH}:${HISTORY_BRANCH}" 2>push.err; then
+          echo "--- git push to ${HISTORY_BRANCH} failed ---"
+          cat push.err
+          echo "Hints:"
+          echo "  * Token scope must include write_repository."
+          echo "  * '${HISTORY_BRANCH}' must allow the token's bot user to push."
+          echo "    If you protected the branch, allow Maintainers (or whichever role"
+          echo "    matches your token) to push to it."
+          exit 1
+        fi
+        echo "Pushed history snapshot to ${HISTORY_BRANCH}."
       fi
   artifacts:
     paths:
