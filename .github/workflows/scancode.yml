@@ -29,6 +29,11 @@ jobs:
         # when a newer release is published on PyPI.
         run: pip install scancode-toolkit==32.5.0
 
+      # docs/license.rst and scripts/check_scancode_allowlist.py describe
+      # the licensing policy meta-textually; they hold no licensed source.
+      # Without --ignore on those files, scancode flags strings like
+      # 'gpl-1.0-plus' inside the allowlist dictionary as license detections
+      # and the meta-discussion in the docs as 'unknown-license-reference'.
       - name: Run scancode
         run: |
           mkdir -p scancode-results
@@ -37,6 +42,8 @@ jobs:
             --ignore '**/__pycache__/**' \
             --ignore '**/public/**' \
             --ignore '**/data/history.ndjson' \
+            --ignore '**/docs/license.rst' \
+            --ignore '**/scripts/check_scancode_allowlist.py' \
             --json-pp scancode-results/scancode.json \
             --html-app scancode-results/scancode.html \
             .
