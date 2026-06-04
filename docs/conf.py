@@ -24,3 +24,12 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 html_show_sourcelink = False
+
+# "Edit on GitHub" link rendered by sphinx_rtd_theme on every page.
+html_context = {
+    "display_github": True,
+    "github_user": "douglase",
+    "github_repo": "gitlab-risk-tracker",
+    "github_version": "main",
+    "conf_py_path": "/docs/",
+}

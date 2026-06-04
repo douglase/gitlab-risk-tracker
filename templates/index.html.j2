@@ -84,6 +84,9 @@
   .btn:hover { background: #f5f5f5; }
   .btn-primary { background: #1565c0; color: white; border-color: #1565c0; }
   .btn-primary:hover { background: #0d4ea0; color: white; }
+  footer.dashboard-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 1rem 0 .5rem 0; }
+  footer.dashboard-footer a { color: var(--muted); text-decoration: none; }
+  footer.dashboard-footer a:hover { color: #1565c0; text-decoration: underline; }
   .table-wrap { overflow-x: auto; max-width: 100%; }
   table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
@@ -280,6 +283,13 @@
   </p>
 </section>
 {% endif %}
+
+<footer class="dashboard-footer">
+  Documentation:
+  <a href="https://douglase.github.io/gitlab-risk-tracker/" target="_blank" rel="noopener">gitlab-risk-tracker docs</a>
+  ·
+  <a href="https://github.com/douglase/gitlab-risk-tracker" target="_blank" rel="noopener">source on GitHub</a>
+</footer>
 
 <div id="modal" class="modal hidden">
   <div class="modal-content">
