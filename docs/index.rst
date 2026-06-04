@@ -23,6 +23,7 @@ view of "where do we stand right now and how did we get here."
    :maxdepth: 2
    :caption: Contents
 
+   preview
    setup
    gitlab-setup
    usage
