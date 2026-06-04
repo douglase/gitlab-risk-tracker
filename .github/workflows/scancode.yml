@@ -1,0 +1,60 @@
+name: License scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scancode-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scancode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install scancode-toolkit
+        # Pinned version; Dependabot (.github/dependabot.yml) opens a PR
+        # when a newer release is published on PyPI.
+        run: pip install scancode-toolkit==32.5.0
+
+      # docs/license.rst and scripts/check_scancode_allowlist.py describe
+      # the licensing policy meta-textually; they hold no licensed source.
+      # Without --ignore on those files, scancode would match the literal
+      # allowlist-key strings in the dictionary and the meta-discussion
+      # in the docs as license detections.
+      - name: Run scancode
+        run: |
+          mkdir -p scancode-results
+          scancode --license --copyright --info \
+            --ignore '**/docs/_build/**' \
+            --ignore '**/__pycache__/**' \
+            --ignore '**/public/**' \
+            --ignore '**/data/history.ndjson' \
+            --ignore '**/docs/license.rst' \
+            --ignore '**/scripts/check_scancode_allowlist.py' \
+            --json-pp scancode-results/scancode.json \
+            --html-app scancode-results/scancode.html \
+            .
+
+      - name: Check against allowlist
+        run: python scripts/check_scancode_allowlist.py scancode-results/scancode.json
+
+      - name: Upload scancode report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scancode-report
+          path: scancode-results/
+          retention-days: 30

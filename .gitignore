@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 public/
 data/history.ndjson
+docs/_build/

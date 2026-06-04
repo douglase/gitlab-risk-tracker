@@ -1,4 +1,9 @@
-# risks-dashboard
+# gitlab-risk-tracker
+
+[![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Tests](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/test.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/test.yml)
+[![Docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://douglase.github.io/gitlab-risk-tracker/)
+[![License scan](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml)
 
 GitLab Pages dashboard for risks in the `stp` group.
 
@@ -78,3 +83,12 @@ created/appended in your working copy.
   install`. Switch to a pre-baked image or internal PyPI mirror if your
   runner is restricted.
 - **Epics.** Not included in v1 (`types: [ISSUE]` only).
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE) for the full text.
+
+Copyright (C) 2026 Ewan Douglas and contributors.
+
+Docs: <https://douglase.github.io/gitlab-risk-tracker/> (built via
+GitHub Actions; see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)).

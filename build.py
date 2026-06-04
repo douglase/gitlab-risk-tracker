@@ -5,6 +5,9 @@ field values to data/history.ndjson, and renders public/index.html.
 
 Designed to run inside a GitLab CI job; can also run locally with
 GITLAB_TOKEN and (optionally) CI_SERVER_URL exported.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+Copyright (C) 2026 Ewan Douglas and contributors
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import markdown as md_lib
+import nh3
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -108,12 +112,37 @@ _MD = md_lib.Markdown(
     output_format="html5",
 )
 
+# Allowlist for nh3 HTML sanitization. Issue descriptions are user-controlled
+# text, so the rendered HTML must be sanitized before it's injected into the
+# dashboard via innerHTML. Covers everything Python-Markdown can emit with
+# the extensions we enable; raw <script>, <iframe>, javascript: URLs, etc.
+# are dropped by default.
+_HTML_TAGS: set[str] = {
+    "a", "abbr", "b", "blockquote", "br", "code", "del", "em",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+    "hr", "i", "img", "ins", "li", "ol", "p", "pre", "strong",
+    "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul",
+}
+_HTML_ATTRS: dict[str, set[str]] = {
+    "*": {"class"},
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "th": {"align"},
+    "td": {"align"},
+}
+_URL_SCHEMES: set[str] = {"http", "https", "mailto"}
+
 
 def render_markdown(text: str | None) -> str:
     if not text:
         return ""
     _MD.reset()
-    return _MD.convert(text)
+    return nh3.clean(
+        _MD.convert(text),
+        tags=_HTML_TAGS,
+        attributes=_HTML_ATTRS,
+        url_schemes=_URL_SCHEMES,
+    )
 
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -270,6 +299,10 @@ query($group: ID!, $cursor: String) {
               nodes { id username name webUrl }
             }
           }
+          ... on WorkItemWidgetHealthStatus {
+            type
+            healthStatus
+          }
           ... on WorkItemWidgetCustomFields {
             type
             customFieldValues {
@@ -337,6 +370,7 @@ def normalize(item: dict) -> dict:
     cf_values: list = []
     description: str = ""
     assignees: list[dict] = []
+    health_status: str | None = None
     for w in item.get("widgets") or []:
         wtype = w.get("type")
         if wtype == "LABELS":
@@ -352,6 +386,8 @@ def normalize(item: dict) -> dict:
                 }
                 for n in (w.get("assignees") or {}).get("nodes", [])
             ]
+        elif wtype == "HEALTH_STATUS":
+            health_status = w.get("healthStatus")
         elif wtype == "CUSTOM_FIELDS":
             cf_values = w.get("customFieldValues") or []
     subsystems = sorted(set(labels) & set(SUBSYSTEMS))
@@ -375,6 +411,7 @@ def normalize(item: dict) -> dict:
         "products": products,
         "other_labels": other_labels,
         "assignees": assignees,
+        "health_status": health_status,
         "description": description,
         "sections": parse_sections(description),
     }
@@ -610,7 +647,8 @@ def build_matrix(items: list[dict]) -> dict:
     return {"cells": cells, "unscored": unscored}
 
 
-def render(items: list[dict], history: list[dict], server_url: str = "") -> None:
+def render(items: list[dict], history: list[dict],
+           server_url: str = "", project_path: str = "") -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
@@ -683,6 +721,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
             "products": it["products"],
             "other_labels": it["other_labels"],
             "assignees": it["assignees"],
+            "health_status": it["health_status"],
             "sections": rendered_sections,
         })
     risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))
@@ -704,6 +743,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
         product_options=product_options_sorted,
         product_patterns=PRODUCT_PATTERNS,
         server_url=server_url.rstrip("/") if server_url else "",
+        project_path=project_path,
         risks_table_json=json.dumps(risks_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,
@@ -718,7 +758,11 @@ def main() -> None:
     items = [normalize(it) for it in raw]
     history = load_history()
     history = update_history(items, history)
-    render(items, history, server_url=gitlab_url())
+    render(
+        items, history,
+        server_url=gitlab_url(),
+        project_path=os.environ.get("CI_PROJECT_PATH", ""),
+    )
     print(f"Rendered public/index.html with {len(items)} work items "
           f"({sum(1 for i in items if i['state'] != 'closed')} open).")
 
