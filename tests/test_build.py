@@ -260,6 +260,7 @@ def _backdate_history(history_path: Path) -> None:
 
 def _run_main_with_items(items: list[dict]) -> None:
     os.environ.setdefault("CI_SERVER_URL", "https://gitlab.example.com")
+    os.environ.setdefault("CI_PROJECT_PATH", "stp/gitlab-risk-tracker")
     with patch.object(build, "schema_check", lambda: None), \
          patch.object(build, "fetch_work_items", lambda: items):
         build.main()
@@ -549,6 +550,39 @@ def _set_state(state: str):
     return mutate
 
 
+def test_render_markdown_sanitization() -> None:
+    """User-controlled issue descriptions get HTML-injected into the
+    modal via innerHTML. render_markdown() must strip script tags,
+    iframes, and javascript: URLs while keeping legitimate markdown
+    output (bold, links, lists, code, headings)."""
+    hostile = (
+        "# Heading\n\n"
+        "**bold** and a [bad link](javascript:alert(1)) "
+        "and a [good link](https://example.com).\n\n"
+        "<script>alert('xss')</script>\n"
+        "<iframe src='https://evil.example/'></iframe>\n\n"
+        "- item one\n"
+        "- item two\n\n"
+        "```\nsome code\n```\n"
+    )
+    out = build.render_markdown(hostile)
+    # Dangerous markup is gone.
+    assert "<script" not in out.lower(), f"script tag not stripped: {out!r}"
+    assert "<iframe" not in out.lower(), f"iframe not stripped: {out!r}"
+    assert "javascript:" not in out.lower(), (
+        f"javascript: URL not stripped: {out!r}"
+    )
+    # Legitimate content survives.
+    assert "<strong>bold</strong>" in out
+    assert 'href="https://example.com"' in out
+    assert "<h1>" in out
+    assert "<li>" in out
+    assert "<code>" in out
+    # Empty / None handled.
+    assert build.render_markdown(None) == ""
+    assert build.render_markdown("") == ""
+
+
 def test_parse_sections() -> None:
     md = """
 Stuff before any heading is ignored.
@@ -606,6 +640,7 @@ def test_clean_title() -> None:
 
 if __name__ == "__main__":
     import tempfile
+    test_render_markdown_sanitization()
     test_parse_sections()
     test_clean_title()
     with tempfile.TemporaryDirectory() as d:
