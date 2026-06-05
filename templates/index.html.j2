@@ -68,8 +68,8 @@
   .bar .n { font-size: 12px; color: var(--muted); }
   .trend { display: block; width: 100%; max-width: 1000px; height: auto; }
   .trend .risk-line, .trend .risk-label { transition: opacity .12s, stroke-width .12s; }
-  .trend .risk-line { cursor: pointer; }
-  .trend .risk-label { cursor: pointer; }
+  .trend .risk-line, .trend .risk-label { cursor: pointer; }
+  .trend .risk-label:hover { text-decoration: underline; }
   .hidden { display: none !important; }
   .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
   .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
@@ -359,6 +359,11 @@ function matchesFilter(item, f) {
 
 let selectedKey = null;
 
+// Pinned risk on the per-risk score chart (click a line/label to pin).
+// Survives chart re-renders so a pinned highlight persists across filter
+// changes, as long as the pinned risk is still visible.
+let pinnedRiskIid = null;
+
 function selectCell(key) {
   selectedKey = key;
   document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
@@ -487,7 +492,8 @@ function drawRiskTrends() {
       inner += `<line x1="${plotRight}" y1="${lineY}" x2="${LABEL_X - 4}" y2="${midY}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>`;
     }
   });
-  // Labels themselves.
+  // Labels themselves. (No <a> wrapper — clicking a label pins the
+  // highlight; issue navigation lives in the table below.)
   visible.forEach((s, i) => {
     const last = s.scores[N - 1];
     const ny = 12 + i * 12;
@@ -495,7 +501,7 @@ function drawRiskTrends() {
     const lastVal = last != null ? last : '–';
     const title = (s.display_title || s.title || '').slice(0, 28);
     const safeIid = escapeHtml(String(s.iid));
-    inner += `<a href="${escapeHtml(s.web_url)}" target="_blank"><text class="risk-label" data-iid="${safeIid}" x="${LABEL_X}" y="${ny}" font-size="10" fill="${color}">#${safeIid} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text></a>`;
+    inner += `<text class="risk-label" data-iid="${safeIid}" x="${LABEL_X}" y="${ny}" font-size="10" fill="${color}">#${safeIid} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text>`;
   });
   if (ordered.length > maxLabels) {
     inner += `<text x="${LABEL_X}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
@@ -505,16 +511,22 @@ function drawRiskTrends() {
   inner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${riskTrends.labels[0]}</text>`;
   inner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
   svg.innerHTML = inner;
-  // Hover to highlight: mousing over a line or label dims every other
-  // line/label so a single risk's history is readable even with many
-  // overlapping series.
+  // Highlight machinery: click a line or label to pin focus on a single
+  // risk (others dim to 15%). Click again, click any other risk, or click
+  // the chart background to clear. Hover provides a transient preview
+  // while no pin is active.
   const elements = svg.querySelectorAll('.risk-line, .risk-label');
-  const setHover = iid => {
+  // Drop the pin if the risk is no longer in the current series (e.g.
+  // user changed a filter that hid it).
+  if (pinnedRiskIid && !series.some(s => String(s.iid) === pinnedRiskIid)) {
+    pinnedRiskIid = null;
+  }
+  const apply = activeIid => {
     elements.forEach(el => {
-      if (!iid) {
+      if (!activeIid) {
         el.style.opacity = '';
         if (el.tagName === 'polyline') el.style.strokeWidth = '';
-      } else if (el.getAttribute('data-iid') === iid) {
+      } else if (el.getAttribute('data-iid') === activeIid) {
         el.style.opacity = '1';
         if (el.tagName === 'polyline') el.style.strokeWidth = '2.5';
       } else {
@@ -524,9 +536,27 @@ function drawRiskTrends() {
     });
   };
   elements.forEach(el => {
-    el.addEventListener('mouseenter', () => setHover(el.getAttribute('data-iid')));
-    el.addEventListener('mouseleave', () => setHover(null));
+    el.addEventListener('mouseenter', () => {
+      if (!pinnedRiskIid) apply(el.getAttribute('data-iid'));
+    });
+    el.addEventListener('mouseleave', () => {
+      if (!pinnedRiskIid) apply(null);
+    });
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.getAttribute('data-iid');
+      pinnedRiskIid = (pinnedRiskIid === id) ? null : id;
+      apply(pinnedRiskIid);
+    });
   });
+  // Clicking the chart background (away from any line/label) clears the pin.
+  svg.addEventListener('click', e => {
+    if (e.target === svg) {
+      pinnedRiskIid = null;
+      apply(null);
+    }
+  });
+  apply(pinnedRiskIid);
 }
 
 function applyFilters() {
