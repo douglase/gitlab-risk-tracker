@@ -76,6 +76,17 @@
   .col-toggles label { display: flex; gap: .35rem; align-items: center; font-size: 12px; cursor: pointer; color: var(--fg); flex-direction: row; }
   #export-csv { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; }
   #export-csv:hover { background: #f5f5f5; }
+  section.regenerate { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; }
+  section.regenerate h2 { margin: 0 0 .5rem 0; font-size: 1rem; }
+  section.regenerate p { margin: .35rem 0; }
+  section.regenerate p.muted { color: var(--muted); font-size: 12px; }
+  .btn { display: inline-block; padding: .45rem .9rem; font: inherit; font-size: 13px; border-radius: 4px; border: 1px solid var(--border); background: white; color: var(--fg); text-decoration: none; margin-right: .35rem; cursor: pointer; }
+  .btn:hover { background: #f5f5f5; }
+  .btn-primary { background: #1565c0; color: white; border-color: #1565c0; }
+  .btn-primary:hover { background: #0d4ea0; color: white; }
+  footer.dashboard-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 1rem 0 .5rem 0; }
+  footer.dashboard-footer a { color: var(--muted); text-decoration: none; }
+  footer.dashboard-footer a:hover { color: #1565c0; text-decoration: underline; }
   .table-wrap { overflow-x: auto; max-width: 100%; }
   table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
@@ -256,6 +267,30 @@
   </div>
 </section>
 
+{% if server_url and project_path %}
+<section class="regenerate">
+  <h2>Refresh this dashboard</h2>
+  <p>This page is built by a scheduled GitLab pipeline. To pull in changes
+  you have made since the last nightly run, open the schedules page and
+  click the ▶ play button next to the nightly schedule:</p>
+  <p>
+    <a class="btn btn-primary"
+       href="{{ server_url }}/{{ project_path }}/-/pipeline_schedules"
+       target="_blank" rel="noopener">▶ Open pipeline schedules</a>
+  </p>
+  <p class="muted">
+    A typical run takes 1–3 minutes; refresh this page once the pipeline finishes.
+  </p>
+</section>
+{% endif %}
+
+<footer class="dashboard-footer">
+  Documentation:
+  <a href="https://douglase.github.io/gitlab-risk-tracker/" target="_blank" rel="noopener">gitlab-risk-tracker docs</a>
+  ·
+  <a href="https://github.com/douglase/gitlab-risk-tracker" target="_blank" rel="noopener">source on GitHub</a>
+</footer>
+
 <div id="modal" class="modal hidden">
   <div class="modal-content">
     <button class="modal-close" type="button" onclick="closeModal()">×</button>
@@ -408,21 +443,57 @@ function drawRiskTrends() {
   inner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
   inner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
   // Right-edge labels: ID + score, packed vertically and sorted by last value.
+  // Risks with identical current scores share a single line on the chart, so
+  // group their labels under one bracket and draw a single dotted leader from
+  // the line's endpoint to the bracket's apex.
   const ordered = series.slice().sort((a, b) => {
     const av = a.scores[N - 1], bv = b.scores[N - 1];
     return (bv == null ? -1 : bv) - (av == null ? -1 : av);
   });
   const maxLabels = Math.floor((H - 30) / 12);
-  ordered.slice(0, maxLabels).forEach((s, i) => {
+  const visible = ordered.slice(0, maxLabels);
+  const LABEL_X = plotRight + 28;
+  const BRACKET_X = plotRight + 14;
+  // Group contiguous visible labels by their current (rightmost) score.
+  const groups = [];
+  visible.forEach((s, i) => {
+    const score = s.scores[N - 1];
+    const last = groups[groups.length - 1];
+    if (last && last.score === score) {
+      last.endIdx = i;
+      last.items.push(s);
+    } else {
+      groups.push({ score, startIdx: i, endIdx: i, items: [s] });
+    }
+  });
+  // Draw brackets + leaders behind labels.
+  groups.forEach(g => {
+    const color = tierColors[g.items[0].tier] || '#666';
+    const topY = 2 + g.startIdx * 12;     // top of first label glyph
+    const botY = 12 + g.endIdx * 12 + 2;  // bottom of last label glyph
+    const midY = (topY + botY) / 2;
+    const lineY = g.score != null ? yScale(g.score) : midY;
+    if (g.items.length > 1) {
+      // Curly-brace shape, opening toward the labels, apex pointing at the plot.
+      const ax = BRACKET_X;
+      inner += `<path d="M ${ax + 5} ${topY} L ${ax} ${topY} L ${ax} ${midY - 3} L ${ax - 5} ${midY} L ${ax} ${midY + 3} L ${ax} ${botY} L ${ax + 5} ${botY}" fill="none" stroke="${color}" stroke-width="1" opacity="0.75"/>`;
+      inner += `<line x1="${plotRight}" y1="${lineY}" x2="${ax - 5}" y2="${midY}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>`;
+    } else if (g.score != null) {
+      // Singleton: just a dotted leader from the line to the label.
+      inner += `<line x1="${plotRight}" y1="${lineY}" x2="${LABEL_X - 4}" y2="${midY}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>`;
+    }
+  });
+  // Labels themselves.
+  visible.forEach((s, i) => {
     const last = s.scores[N - 1];
     const ny = 12 + i * 12;
     const color = tierColors[s.tier] || '#666';
     const lastVal = last != null ? last : '–';
     const title = (s.display_title || s.title || '').slice(0, 28);
-    inner += `<a href="${escapeHtml(s.web_url)}" target="_blank"><text x="${plotRight + 6}" y="${ny}" font-size="10" fill="${color}">#${escapeHtml(String(s.iid))} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text></a>`;
+    inner += `<a href="${escapeHtml(s.web_url)}" target="_blank"><text x="${LABEL_X}" y="${ny}" font-size="10" fill="${color}">#${escapeHtml(String(s.iid))} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text></a>`;
   });
   if (ordered.length > maxLabels) {
-    inner += `<text x="${plotRight + 6}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
+    inner += `<text x="${LABEL_X}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
   }
   // Date + max-Y axes labels.
   inner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${riskTrends.labels[N - 1]}</text>`;

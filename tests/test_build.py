@@ -251,6 +251,11 @@ def _backdate_history(history_path: Path) -> None:
     for d, c, l in [(80, 2, 2), (70, 3, 3), (40, 4, 3), (20, 4, 4)]:
         rows.append(row(d, 2, "Legacy software staffing", c, l, priority="High",
                         risk_types=["Schedule", "Cost"], subsystems=["software"]))
+    # History for #10 so it co-renders on the per-risk chart with #2 (both score 16)
+    # and the bracket logic in drawRiskTrends has a multi-item group to draw.
+    for d, c, l in [(60, 3, 3), (30, 3, 4), (10, 4, 4)]:
+        rows.append(row(d, 10, "Optical contamination during integration", c, l,
+                        priority="High", risk_types=["Technical"], subsystems=["optics"]))
 
     history_path.parent.mkdir(parents=True, exist_ok=True)
     with history_path.open("w") as f:
@@ -260,6 +265,7 @@ def _backdate_history(history_path: Path) -> None:
 
 def _run_main_with_items(items: list[dict]) -> None:
     os.environ.setdefault("CI_SERVER_URL", "https://gitlab.example.com")
+    os.environ.setdefault("CI_PROJECT_PATH", "stp/gitlab-risk-tracker")
     with patch.object(build, "schema_check", lambda: None), \
          patch.object(build, "fetch_work_items", lambda: items):
         build.main()
@@ -349,9 +355,10 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     # History: only changed items append new rows. Backdated trail had
     # #1 at C5xL4 already (same as current), #2 at C4xL5 (same as current),
     # #4 at C4xL3 (same as current), #6 at C2xL4 (same as current).
-    # Items #3, #5, #7, #8, #9, #10, #11 have no prior history -> new rows.
+    # Items #3, #5, #7, #8, #9, #11 have no prior history -> new rows.
+    # (#10 has backdated history matching its current state so no new row.)
     rows_after = sum(1 for _ in history_path.open())
-    expected_new = 7
+    expected_new = 6
     assert rows_after - rows_before == expected_new, (
         f"expected {expected_new} new history rows, got {rows_after - rows_before}"
     )
@@ -393,7 +400,13 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     # original SAMPLE_ITEMS so the published public/index.html shows the
     # full 10-item matrix.
     _run_main_with_items(SAMPLE_ITEMS)
+    # Promote the freshly-rendered dashboard to the docs static directory
+    # so it ships with the published Sphinx site as a live preview.
+    example_target = build.ROOT / "docs" / "_static" / "example_dashboard.html"
+    example_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(out, example_target)
     print(f"\nWrote example dashboard to: {out}")
+    print(f"Copied to docs/_static for the published preview: {example_target}")
     print(f"History rows: {sum(1 for _ in history_path.open())}")
 
 

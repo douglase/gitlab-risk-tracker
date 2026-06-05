@@ -647,7 +647,8 @@ def build_matrix(items: list[dict]) -> dict:
     return {"cells": cells, "unscored": unscored}
 
 
-def render(items: list[dict], history: list[dict], server_url: str = "") -> None:
+def render(items: list[dict], history: list[dict],
+           server_url: str = "", project_path: str = "") -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
@@ -742,6 +743,7 @@ def render(items: list[dict], history: list[dict], server_url: str = "") -> None
         product_options=product_options_sorted,
         product_patterns=PRODUCT_PATTERNS,
         server_url=server_url.rstrip("/") if server_url else "",
+        project_path=project_path,
         risks_table_json=json.dumps(risks_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,
@@ -756,7 +758,11 @@ def main() -> None:
     items = [normalize(it) for it in raw]
     history = load_history()
     history = update_history(items, history)
-    render(items, history, server_url=gitlab_url())
+    render(
+        items, history,
+        server_url=gitlab_url(),
+        project_path=os.environ.get("CI_PROJECT_PATH", ""),
+    )
     print(f"Rendered public/index.html with {len(items)} work items "
           f"({sum(1 for i in items if i['state'] != 'closed')} open).")
 
