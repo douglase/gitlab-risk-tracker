@@ -400,7 +400,13 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     # original SAMPLE_ITEMS so the published public/index.html shows the
     # full 10-item matrix.
     _run_main_with_items(SAMPLE_ITEMS)
+    # Promote the freshly-rendered dashboard to the docs static directory
+    # so it ships with the published Sphinx site as a live preview.
+    example_target = build.ROOT / "docs" / "_static" / "example_dashboard.html"
+    example_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(out, example_target)
     print(f"\nWrote example dashboard to: {out}")
+    print(f"Copied to docs/_static for the published preview: {example_target}")
     print(f"History rows: {sum(1 for _ in history_path.open())}")
 
 
