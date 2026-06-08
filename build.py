@@ -754,6 +754,34 @@ def render(items: list[dict], history: list[dict],
             "sections": rendered_sections,
         })
     risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))
+
+    # Risks without a Consequence × Likelihood score don't belong on the
+    # 5×5 matrix or the sortable risks table (no severity to sort by).
+    # Surface them in their own list so the team notices and assigns
+    # values in GitLab.
+    unscored_table: list[dict] = []
+    for it in items:
+        c, l = it["consequence"], it["likelihood"]
+        if c is not None and l is not None and 1 <= c <= 5 and 1 <= l <= 5:
+            continue
+        unscored_table.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "state": it["state"],
+            "consequence": c,
+            "likelihood": l,
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "subsystems": it["subsystems"],
+            "products": it["products"],
+            "other_labels": it["other_labels"],
+            "assignees": it["assignees"],
+            "created_at": it.get("created_at"),
+            "closed_at": it.get("closed_at"),
+        })
+    unscored_table.sort(key=lambda r: (r["state"], r["iid"]))
     html = tpl.render(
         group_path=GROUP_PATH,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -775,6 +803,7 @@ def render(items: list[dict], history: list[dict],
         server_url=server_url.rstrip("/") if server_url else "",
         project_path=project_path,
         risks_table_json=json.dumps(risks_table),
+        unscored_table_json=json.dumps(unscored_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,
     )
