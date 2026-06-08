@@ -64,8 +64,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-import openpyxl
 import requests
+
+# openpyxl is imported lazily inside read_xlsx() so the rest of this
+# module (merge_sections, parse_issue_url, the heading-normalisation
+# helpers, etc.) can be imported and unit-tested without it.
 
 
 # Mirrors build.py CANONICAL_SECTIONS, but with a *broader* synonym list
@@ -266,6 +269,7 @@ def parse_issue_url(url: str) -> dict | None:
 
 
 def read_xlsx(path: Path, sheet: str | None) -> list[dict]:
+    import openpyxl  # lazy: only needed for the main CLI flow
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     ws = wb[sheet] if sheet else wb.active
     iter_rows = ws.iter_rows(values_only=True)
