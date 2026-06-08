@@ -323,7 +323,7 @@ query($group: ID!, $cursor: String) {
 
 
 def fetch_work_items() -> list[dict]:
-    items: list[dict] = []
+    raw: list[dict] = []
     cursor: str | None = None
     while True:
         data = graphql(WORK_ITEMS_QUERY, {"group": GROUP_PATH, "cursor": cursor})
@@ -331,10 +331,32 @@ def fetch_work_items() -> list[dict]:
         if not group:
             sys.exit(f"Group '{GROUP_PATH}' not found or token lacks access.")
         conn = group["workItems"]
-        items.extend(conn["nodes"])
+        raw.extend(conn["nodes"])
         if not conn["pageInfo"]["hasNextPage"]:
             break
         cursor = conn["pageInfo"]["endCursor"]
+    # Defensive dedup by global id. GitLab's recursive group.workItems
+    # pagination should not return the same node twice, but if it ever
+    # does (e.g. due to a project being shared across two subgroups or
+    # a concurrent create during pagination), we'd double-count the
+    # issue in the matrix and the risks table.
+    seen: set[str] = set()
+    items: list[dict] = []
+    duplicates = 0
+    for it in raw:
+        gid = it.get("id")
+        if gid and gid in seen:
+            duplicates += 1
+            continue
+        if gid:
+            seen.add(gid)
+        items.append(it)
+    if duplicates:
+        print(
+            f"warning: fetch_work_items returned {duplicates} duplicate node(s); "
+            f"deduped by id.",
+            file=sys.stderr,
+        )
     return items
 
 
