@@ -224,7 +224,7 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
 
     # Strip out any proposal blocks added by a prior run; otherwise
     # we'd compare the spreadsheet against our own earlier proposal.
-    text = _strip_proposals(existing or "").rstrip()
+    text = _strip_proposals(existing or "")
 
     # Find the first body for each canonical section already in text.
     matches = list(HEADING_RE.finditer(text))
