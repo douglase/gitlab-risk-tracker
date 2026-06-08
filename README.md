@@ -89,6 +89,6 @@ created/appended in your working copy.
 GPL-3.0-or-later. See [LICENSE](LICENSE) for the full text.
 
 Copyright (C) 2026 Ewan Douglas and contributors.
-
+largely written with claude code opus 4.7.
 Docs: <https://douglase.github.io/gitlab-risk-tracker/> (built via
 GitHub Actions; see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)).

@@ -162,6 +162,13 @@
     </select>
   </label>
   {% endif %}
+  {% if all_label_options %}
+  <label>Labels <span class="hint">(multi · every label in use)</span>
+    <select id="f-labels" multiple size="5">
+      {% for v in all_label_options %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+    </select>
+  </label>
+  {% endif %}
   <button type="button" id="clear-filters">Clear filters</button>
   <span class="legend" title="Click a tier to filter (multi-select)">
     <button type="button" class="legend-chip low"      data-tier="low">low (1–4)</button>
@@ -343,8 +350,17 @@ function currentFilter() {
     pri:      document.getElementById('f-priority').value,
     rt:       document.getElementById('f-risktype').value,
     products: getMulti('f-products'),
+    labels:   getMulti('f-labels'),
     tiers:    Array.from(selectedTiers),
   };
+}
+
+function _itemAllLabels(item) {
+  return [
+    ...(item.subsystems || []),
+    ...(item.products || []),
+    ...(item.other_labels || []),
+  ];
 }
 
 function matchesFilter(item, f) {
@@ -353,6 +369,10 @@ function matchesFilter(item, f) {
   if (f.pri && item.priority !== f.pri) return false;
   if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
   if (f.products.length && !f.products.some(p => (item.products || []).includes(p))) return false;
+  if (f.labels.length) {
+    const all = _itemAllLabels(item);
+    if (!f.labels.some(l => all.includes(l))) return false;
+  }
   if (f.tiers.length && !f.tiers.includes(item.tier)) return false;
   return true;
 }

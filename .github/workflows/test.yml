@@ -17,9 +17,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -28,5 +28,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run tests
+      - name: Run build tests
         run: python tests/test_build.py
+
+      - name: Run smartsheet importer tests
+        # Doesn't need openpyxl/requests at runtime: the importer
+        # imports openpyxl lazily inside read_xlsx() and the tests
+        # only exercise the pure-Python helpers.
+        run: python tests/test_import_smartsheet.py
