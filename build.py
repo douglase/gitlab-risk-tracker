@@ -591,6 +591,7 @@ def risk_score_series(history: list[dict], current_items: list[dict],
             "priority": it["priority"],
             "risk_types": it["risk_types"],
             "products": it["products"],
+            "other_labels": it["other_labels"],
             "tier": severity_tier(c, l),
             "current_score": c * l,
             "scores": scores,
@@ -676,6 +677,7 @@ def render(items: list[dict], history: list[dict],
                 "priority": it["priority"],
                 "risk_types": it["risk_types"],
                 "products": it["products"],
+                "other_labels": it["other_labels"],
                 "tier": severity_tier(c, l),
             }
             for it in matrix["cells"][(c, l)]
@@ -684,11 +686,16 @@ def render(items: list[dict], history: list[dict],
         for l in range(1, 6)
     }
     product_options: set[str] = set()
+    all_label_options: set[str] = set()
     for it in items:
         if it["state"] == "closed":
             continue
         product_options.update(it["products"])
+        all_label_options.update(it["subsystems"])
+        all_label_options.update(it["products"])
+        all_label_options.update(it["other_labels"])
     product_options_sorted = sorted(product_options)
+    all_label_options_sorted = sorted(all_label_options)
 
     section_meta = [
         {"key": key, "header": header, "slug": _slugify(header)}
@@ -741,6 +748,7 @@ def render(items: list[dict], history: list[dict],
         priorities=["High", "Medium", "Low"],
         risk_types=["Technical", "Cost", "Schedule"],
         product_options=product_options_sorted,
+        all_label_options=all_label_options_sorted,
         product_patterns=PRODUCT_PATTERNS,
         server_url=server_url.rstrip("/") if server_url else "",
         project_path=project_path,
