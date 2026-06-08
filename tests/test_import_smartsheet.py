@@ -77,6 +77,60 @@ def test_differ_appends_proposal_existing_preserved() -> None:
         "proposal not appended after existing section"
 
 
+def test_bare_body_matches_spreadsheet_risk_description() -> None:
+    """A description with no canonical heading but whose entire body
+    matches the spreadsheet's Risk Description should NOT trigger a
+    proposal block — the bare prose is treated as the existing
+    canonical content (the dashboard surfaces it via the same leading-
+    prose fallback). Avoids polluting the issue with a duplicate."""
+    existing = "If fixture does not fit on the air cart, then we cannot move within the facility."
+    out = imp.merge_sections(
+        existing,
+        {"risk_description": existing},
+        today="2026-06-04",
+        source_id="LPY016",
+    )
+    assert "spreadsheet-import:proposal:risk_description" not in out, (
+        f"bare matching body triggered a duplicate proposal block:\n{out}"
+    )
+    assert out.strip() == existing.strip(), \
+        f"bare body was modified:\n{out}"
+
+
+def test_bare_body_differs_still_proposes() -> None:
+    """Bare body that DOESN'T match the spreadsheet still gets a
+    proposal block — the bare prose is the existing content, and the
+    diff in the proposal shows what changed."""
+    existing = "Old free-form text."
+    out = imp.merge_sections(
+        existing,
+        {"risk_description": "New canonical text from the spreadsheet."},
+        today="2026-06-04",
+        source_id="LPY016",
+    )
+    assert "spreadsheet-import:proposal:risk_description" in out
+    assert "New canonical text from the spreadsheet." in out
+    # The diff block should be present (since "existing_body" is now the
+    # bare prose, not "").
+    assert "```diff" in out, \
+        "expected a diff block comparing bare body to spreadsheet text"
+    assert "-Old free-form text." in out
+
+
+def test_bare_body_only_blocks_risk_description_fallback() -> None:
+    """The bare-body fallback covers risk_description only — Notes and
+    Mitigation Plan still require explicit headings to match."""
+    existing = "Free-form risk text."
+    out = imp.merge_sections(
+        existing,
+        {"notes": "Free-form risk text."},  # same string, but for Notes
+        today="2026-06-04",
+        source_id="LPY016",
+    )
+    # Notes still differs (no canonical Notes section in existing) → proposal added.
+    assert "spreadsheet-import:proposal:notes" in out
+
+
 def test_missing_section_appends_proposal_not_canonical_heading() -> None:
     """Issue has no matching canonical heading → proposal block, NOT a
     bare canonical section. The user must still review before adopting."""

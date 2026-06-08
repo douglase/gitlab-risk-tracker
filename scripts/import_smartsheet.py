@@ -252,7 +252,16 @@ def canonical_key(heading: str) -> str | None:
 
 def _first_canonical_bodies(text: str) -> dict[str, str]:
     """Return {canonical_key: body_text} from the first canonical heading
-    for each key encountered in `text`."""
+    for each key encountered in `text`.
+
+    Fallback for ``risk_description``: if no explicit canonical heading
+    matches, the description's leading prose (text before the first
+    markdown heading, or the whole body if it has no headings) is used.
+    Mirrors :func:`build.parse_sections` so an issue whose body is just
+    a bare risk statement — no ``## Risk Description`` header — is
+    treated as already having that content, suppressing duplicate
+    proposal blocks on re-import.
+    """
     bodies: dict[str, str] = {}
     matches = list(HEADING_RE.finditer(text))
     for i, m in enumerate(matches):
@@ -262,6 +271,11 @@ def _first_canonical_bodies(text: str) -> dict[str, str]:
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         bodies[key] = text[start:end].strip()
+    if "risk_description" not in bodies:
+        leading_end = matches[0].start() if matches else len(text)
+        leading = text[:leading_end].strip()
+        if leading:
+            bodies["risk_description"] = leading
     return bodies
 
 
