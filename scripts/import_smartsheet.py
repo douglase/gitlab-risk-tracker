@@ -225,7 +225,10 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
 
     # Strip out any proposal blocks added by a prior run; otherwise
     # we'd compare the spreadsheet against our own earlier proposal.
-    text = _strip_proposals(existing or "")
+    # rstrip() is essential for idempotency — without it, the trailing
+    # newline written by the previous run accumulates each time we
+    # concatenate text + sep ("\n\n") below.
+    text = _strip_proposals(existing or "").rstrip()
 
     # Find the first body for each canonical section already in text.
     matches = list(HEADING_RE.finditer(text))
@@ -252,7 +255,7 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
         ))
 
     if not proposals:
-        return text
+        return (text + "\n") if text else ""
     sep = "\n\n" if text else ""
     return f"{text}{sep}" + "\n\n".join(proposals) + "\n"
 
