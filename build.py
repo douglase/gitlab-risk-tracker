@@ -68,9 +68,9 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
 CANONICAL_SECTIONS: list[tuple[str, str, list[str]]] = [
     ("risk_description", "Risk Description",
      ["risk description", "description", "summary"]),
-    ("action_plan", "Notes",
+    ("notes", "Notes",
      ["notes"]),
-    ("risk_mitigation", "Mitigation Plan",
+    ("mitigation_plan", "Mitigation Plan",
      ["mitigation plan", "risk mitigation planning", "risk mitigation",
       "mitigation", "plan", "planning"]),
 ]
