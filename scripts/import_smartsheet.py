@@ -34,7 +34,7 @@ place.
 
 Quick start::
 
-    pip install requests openpyxl
+    pip install -r requirements.txt openpyxl
     export GITLAB_TOKEN=<token-with-api-scope>
 
     # Eyeball one issue first
