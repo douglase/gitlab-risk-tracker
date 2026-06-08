@@ -189,8 +189,6 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         f"<!-- spreadsheet-import:proposal:{key} -->",
         f"### {canonical_h}",
         "",
-        f"*imported from {source_label}, on {today}*",
-        "",
         new_body.rstrip(),
     ]
     if existing_body:
@@ -210,6 +208,13 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
             diff_text,
             "```",
         ])
+    # Attribution last — keeps the imported content as the primary text
+    # the dashboard renders for net-new sections; the source note is a
+    # subdued footer.
+    parts.extend([
+        "",
+        f"*(imported from {source_label}, on {today})*",
+    ])
     parts.append(f"<!-- /spreadsheet-import:proposal:{key} -->")
     return "\n".join(parts)
 
