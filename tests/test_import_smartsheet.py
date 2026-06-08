@@ -203,19 +203,22 @@ def test_idempotent_same_data_byte_for_byte() -> None:
 
 def test_proposal_refreshes_when_spreadsheet_changes() -> None:
     """Spreadsheet text changes between runs → previous block stripped,
-    new block written in its place (NOT duplicated)."""
+    new block written in its place (NOT duplicated). Requires a stable
+    source_id — in production, that's the row's Unique Risk ID column."""
     existing = "## Risk Description\n\nOriginal body.\n"
     first = imp.merge_sections(
-        existing, {"risk_description": "First proposal."}, today="2026-06-04"
+        existing, {"risk_description": "First proposal."},
+        today="2026-06-04", source_id="WCC123",
     )
     second = imp.merge_sections(
-        first, {"risk_description": "Second proposal."}, today="2026-06-04"
+        first, {"risk_description": "Second proposal."},
+        today="2026-06-04", source_id="WCC123",
     )
     open_markers = second.count(
-        "<!-- spreadsheet-import:proposal:risk_description -->"
+        "<!-- spreadsheet-import:proposal:risk_description:wcc123 -->"
     )
     close_markers = second.count(
-        "<!-- /spreadsheet-import:proposal:risk_description -->"
+        "<!-- /spreadsheet-import:proposal:risk_description:wcc123 -->"
     )
     assert open_markers == 1, f"open markers: {open_markers}, expected 1"
     assert close_markers == 1, f"close markers: {close_markers}, expected 1"
@@ -239,7 +242,8 @@ def test_acceptance_workflow_clears_proposal_on_next_run() -> None:
 
 def test_idempotency_across_multiple_sections() -> None:
     """All three canonical sections; mix of match/differ/missing must
-    re-run cleanly."""
+    re-run cleanly. Uses an explicit source_id so the second call
+    refreshes the same proposal blocks instead of appending new ones."""
     existing = (
         "## Risk Description\n\nDesc body unchanged.\n\n"
         "## Notes\n\nOld notes.\n"
@@ -249,18 +253,134 @@ def test_idempotency_across_multiple_sections() -> None:
         "notes": "New notes.",                          # differ → proposal
         "mitigation_plan": "Plan body.",                # missing → proposal
     }
-    once = imp.merge_sections(existing, sections, today="2026-06-04")
-    twice = imp.merge_sections(once, sections, today="2026-06-04")
+    once = imp.merge_sections(existing, sections, today="2026-06-04",
+                              source_id="WCC123")
+    twice = imp.merge_sections(once, sections, today="2026-06-04",
+                               source_id="WCC123")
     assert once == twice, "not idempotent across mixed match/differ/missing"
     # Sanity: exactly the two expected proposals, no more.
-    assert once.count("<!-- spreadsheet-import:proposal:notes -->") == 1
-    assert once.count("<!-- spreadsheet-import:proposal:mitigation_plan -->") == 1
-    assert "<!-- spreadsheet-import:proposal:risk_description -->" not in once
+    assert once.count("<!-- spreadsheet-import:proposal:notes:wcc123 -->") == 1
+    assert once.count("<!-- spreadsheet-import:proposal:mitigation_plan:wcc123 -->") == 1
+    assert "<!-- spreadsheet-import:proposal:risk_description:wcc123 -->" not in once
 
 
 # ---------------------------------------------------------------------------
 # Lower-level helpers
 # ---------------------------------------------------------------------------
+
+def test_multi_row_same_issue_appends_distinct_blocks() -> None:
+    """Two spreadsheet rows targeting the same issue with different
+    source_ids each produce their own proposal block; neither is
+    overwritten by the other."""
+    existing = "## Risk Description\n\nIssue body.\n"
+    first = imp.merge_sections(
+        existing, {"risk_description": "Row A content."},
+        today="2026-06-04", source_id="WCC100",
+    )
+    both = imp.merge_sections(
+        first, {"risk_description": "Row B content."},
+        today="2026-06-04", source_id="ESC042",
+    )
+    assert "Row A content." in both, "first row's block was overwritten"
+    assert "Row B content." in both, "second row's block missing"
+    assert both.count(
+        "<!-- spreadsheet-import:proposal:risk_description:wcc100 -->"
+    ) == 1
+    assert both.count(
+        "<!-- spreadsheet-import:proposal:risk_description:esc042 -->"
+    ) == 1
+    # Idempotent: re-running the WHOLE spreadsheet in the same row
+    # order produces a byte-identical description. (Re-running a single
+    # row in isolation can move its block to the end of the list — only
+    # the full-pass ordering is guaranteed.)
+    second_pass = imp.merge_sections(
+        both, {"risk_description": "Row A content."},
+        today="2026-06-04", source_id="WCC100",
+    )
+    second_pass = imp.merge_sections(
+        second_pass, {"risk_description": "Row B content."},
+        today="2026-06-04", source_id="ESC042",
+    )
+    assert second_pass == both, "full re-run drifted the description"
+
+
+def test_attribution_includes_unique_id_and_modification_date() -> None:
+    """The italic attribution footer carries optional fields when given."""
+    out = imp.merge_sections(
+        "", {"risk_description": "Body."},
+        today="2026-06-04",
+        source_label="Risk Register.xlsx",
+        source_id="WCC100",
+        unique_id="WCC100",
+        modification_date="2026-05-15",
+    )
+    assert (
+        "*(imported from Risk Register.xlsx, "
+        "Unique Risk ID: WCC100, "
+        "Modification Date: 2026-05-15, "
+        "on 2026-06-04)*"
+    ) in out
+
+
+def test_attribution_omits_missing_optional_fields() -> None:
+    """Attribution gracefully drops Unique Risk ID / Modification Date
+    bits when they're not provided."""
+    out = imp.merge_sections(
+        "", {"risk_description": "Body."},
+        today="2026-06-04",
+        source_label="X.xlsx",
+        source_id="abc",
+    )
+    assert "*(imported from X.xlsx, on 2026-06-04)*" in out
+    assert "Unique Risk ID" not in out
+    assert "Modification Date" not in out
+
+
+def test_legacy_blocks_stripped_on_upgrade() -> None:
+    """Issues that still contain old-format (no-sid) proposal blocks
+    from an earlier version of the script get migrated cleanly: the
+    legacy block disappears and a new sid-tagged block takes its place."""
+    legacy_existing = (
+        "## Risk Description\n\nReal content.\n\n"
+        "<!-- spreadsheet-import:proposal:risk_description -->\n"
+        "### Risk Description\n\nOld proposal content.\n"
+        "<!-- /spreadsheet-import:proposal:risk_description -->\n"
+    )
+    out = imp.merge_sections(
+        legacy_existing, {"risk_description": "Fresh content."},
+        today="2026-06-04", source_id="WCC123",
+    )
+    assert "Old proposal content." not in out, \
+        "legacy proposal block was not stripped"
+    assert "Fresh content." in out
+    # New marker present.
+    assert "spreadsheet-import:proposal:risk_description:wcc123" in out
+
+
+def test_find_unique_id_and_modification_date() -> None:
+    """Header lookup is case-insensitive and tolerates extra whitespace."""
+    row = {
+        "GitLab Link": "https://...",
+        "Unique Risk ID": "WCC100",
+        "Modification Date": "2026-05-15",
+        "Risk Description": "Body.",
+    }
+    assert imp.find_unique_id(row) == "WCC100"
+    assert imp.find_modification_date(row) == "2026-05-15"
+
+    row2 = {"  risk id  ": "X-9", "modified": "2026-01-02"}
+    assert imp.find_unique_id(row2) == "X-9"
+    assert imp.find_modification_date(row2) == "2026-01-02"
+
+    # Datetime cell → YYYY-MM-DD string.
+    from datetime import datetime
+    row3 = {"Modification Date": datetime(2026, 7, 4, 12, 30)}
+    assert imp.find_modification_date(row3) == "2026-07-04"
+
+    # No relevant columns → None.
+    assert imp.find_unique_id({"Other": "x"}) is None
+    assert imp.find_modification_date({"Other": "x"}) is None
+
 
 def test_strip_proposals_removes_complete_block() -> None:
     text = (
