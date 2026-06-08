@@ -131,6 +131,35 @@ def test_bare_body_only_blocks_risk_description_fallback() -> None:
     assert "spreadsheet-import:proposal:notes" in out
 
 
+def test_bare_body_matches_rd_other_sections_still_proposed() -> None:
+    """Even when the bare body matches the spreadsheet's Risk
+    Description (so no risk_description proposal is needed), any
+    *other* sections present only in the spreadsheet still produce
+    proposal blocks. The bare-body fallback only short-circuits
+    risk_description, never the other canonical sections."""
+    existing = "If fixture does not fit on the air cart, then we cannot move within the facility."
+    out = imp.merge_sections(
+        existing,
+        {
+            "risk_description": existing,                          # match → no proposal
+            "notes": "Verify cart load every shift.",              # missing → proposal
+            "mitigation_plan": "Order an oversize-fixture cart.",  # missing → proposal
+        },
+        today="2026-06-04",
+        source_id="LPY016",
+    )
+    assert "spreadsheet-import:proposal:risk_description" not in out, \
+        "matching risk_description should not trigger a proposal"
+    assert "spreadsheet-import:proposal:notes" in out, \
+        "notes proposal missing — bare-body fallback swallowed it"
+    assert "Verify cart load every shift." in out
+    assert "spreadsheet-import:proposal:mitigation_plan" in out, \
+        "mitigation_plan proposal missing — bare-body fallback swallowed it"
+    assert "Order an oversize-fixture cart." in out
+    # And the original bare body is preserved verbatim at the top.
+    assert out.startswith(existing)
+
+
 def test_missing_section_appends_proposal_not_canonical_heading() -> None:
     """Issue has no matching canonical heading → proposal block, NOT a
     bare canonical section. The user must still review before adopting."""
