@@ -277,6 +277,33 @@
   </div>
 </section>
 
+{% if unscored_table_json and unscored_table_json != '[]' %}
+<section class="risks-section">
+  <h2>Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
+  <p class="muted" style="margin: 0 0 .75rem; font-size: 12px;">
+    Risks without both a Consequence and a Likelihood don't fit on the
+    matrix. Score them in GitLab to bring them in.
+  </p>
+  <div class="table-wrap">
+    <table class="risks" id="unscored-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Owner</th>
+          <th>Subsystems</th>
+          <th>Labels</th>
+          <th>Opened</th>
+        </tr>
+      </thead>
+      <tbody id="unscored-tbody"></tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
 {% if server_url and project_path %}
 <section class="regenerate">
   <h2>Refresh this dashboard</h2>
@@ -314,6 +341,7 @@ const trends = {{ trends | tojson }};
 const riskTrends = {{ risk_trends | tojson }};
 const risks = {{ risks_table_json | safe }};
 const SECTION_META = {{ section_meta | tojson }};
+const unscored = {{ unscored_table_json | safe }};
 const SERVER_URL = {{ server_url | tojson }};
 const GROUP_PATH = {{ group_path | tojson }};
 
@@ -596,7 +624,60 @@ function applyFilters() {
   });
   renderDetail();
   renderTable();
+  renderUnscoredTable();
   drawRiskTrends();
+}
+
+// === Unscored risks table ===
+
+function renderUnscoredTable() {
+  const tbody = document.getElementById('unscored-tbody');
+  if (!tbody) return;  // section omitted when no unscored items
+  const f = currentFilter();
+  // Apply all filters except severity tier — unscored items have no tier.
+  const filtered = unscored.filter(r => {
+    if (f.status && r.state !== f.status) return false;
+    if (f.subs.length && !f.subs.some(s => (r.subsystems || []).includes(s))) return false;
+    if (f.pri && r.priority !== f.pri) return false;
+    if (f.rt && !(r.risk_types || []).includes(f.rt)) return false;
+    if (f.products.length && !f.products.some(p => (r.products || []).includes(p))) return false;
+    if (f.labels.length) {
+      const all = _itemAllLabels(r);
+      if (!f.labels.some(l => all.includes(l))) return false;
+    }
+    return true;
+  });
+  document.getElementById('unscored-count').textContent = filtered.length;
+  tbody.innerHTML = filtered.map(row => {
+    const stateLabel = row.state
+      ? row.state.charAt(0).toUpperCase() + row.state.slice(1)
+      : '';
+    const subs = (row.subsystems || []).map(s =>
+      `<a class="tag subsystem" href="${labelUrl(s)}" target="_blank">${escapeHtml(s)}</a>`
+    ).join('');
+    const labels = [
+      ...(row.products || []),
+      ...(row.other_labels || []),
+    ].map(l =>
+      `<a class="tag other" href="${labelUrl(l)}" target="_blank">${escapeHtml(l)}</a>`
+    ).join('');
+    const owner = (row.assignees || []).map(a =>
+      a.web_url
+        ? `<a href="${escapeHtml(a.web_url)}" target="_blank">${escapeHtml(a.name)}</a>`
+        : escapeHtml(a.name)
+    ).join(', ');
+    const opened = row.created_at ? String(row.created_at).slice(0, 10) : '';
+    return `<tr>`
+      + `<td class="num"><a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)}</a></td>`
+      + `<td><a href="${escapeHtml(row.web_url)}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`
+      + `<td><span class="state-pill state-${escapeHtml(row.state)}">${escapeHtml(stateLabel)}</span></td>`
+      + `<td>${escapeHtml(row.priority || '')}</td>`
+      + `<td>${owner}</td>`
+      + `<td>${subs}</td>`
+      + `<td>${labels}</td>`
+      + `<td class="num">${escapeHtml(opened)}</td>`
+      + `</tr>`;
+  }).join('');
 }
 
 // === Risks table ===
