@@ -15,17 +15,22 @@ For each row:
 
 1. Parse the issue URL → ``server``, ``project_path``, ``iid``.
 2. GET the current description via the GitLab REST API.
-3. Walk the existing description's markdown headings. If a heading
-   matches one of the three canonical sections, replace its body with
-   the spreadsheet cell. Append any canonical sections that didn't
-   already exist. Leave intro text, screenshots, and unrecognised
-   headings alone.
+3. For each canonical section:
+
+   - If the existing section's body matches the spreadsheet cell
+     (modulo trailing whitespace / blank-line runs), do nothing.
+   - If they differ, OR if the issue has no such section yet, append
+     a clearly-marked **proposal block** at the end of the description
+     containing the spreadsheet text and a unified diff against the
+     current section. **The existing canonical section is never
+     modified.**
 4. If the new description differs from the old, PUT it back.
 
-Designed to be safely re-runnable: running twice with the same xlsx
-produces the same description. Heading synonyms mirror
-``CANONICAL_SECTIONS`` in build.py so the dashboard recognises whatever
-this script writes.
+Designed to be safely re-runnable: each proposal block is wrapped in
+``<!-- spreadsheet-import:proposal:KEY -->`` markers; the next run
+strips its own prior blocks before evaluating, so unchanged data
+produces no churn and updated spreadsheet rows refresh the block in
+place.
 
 Quick start::
 
@@ -98,11 +103,44 @@ ISSUE_URL_RE = re.compile(
 )
 
 
+PROPOSAL_RE = re.compile(
+    r"<!-- spreadsheet-import:proposal:(?P<key>[\w-]+) -->"
+    r".*?"
+    r"<!-- /spreadsheet-import:proposal:(?P=key) -->\n?",
+    re.DOTALL,
+)
+
+
 def _normalise_heading(h: str) -> str:
     s = h.strip().rstrip(":").lower()
     s = re.sub(r"\s*/\s*", " / ", s)
     s = re.sub(r"\s+", " ", s)
     return s
+
+
+def _normalise_body(body: str) -> str:
+    """Trim trailing whitespace per line and collapse blank-line runs so
+    whitespace-only differences are treated as a match."""
+    if not body:
+        return ""
+    out: list[str] = []
+    prev_blank = False
+    for line in body.splitlines():
+        line = line.rstrip()
+        if not line:
+            if not prev_blank:
+                out.append("")
+            prev_blank = True
+        else:
+            out.append(line)
+            prev_blank = False
+    return "\n".join(out).strip()
+
+
+def _strip_proposals(text: str) -> str:
+    """Remove any blocks previously appended by this script so re-runs
+    don't accumulate duplicates."""
+    return PROPOSAL_RE.sub("", text or "")
 
 
 def canonical_key(heading: str) -> str | None:
@@ -113,62 +151,107 @@ def canonical_key(heading: str) -> str | None:
     return None
 
 
-def merge_sections(existing: str | None, new_sections: dict[str, str]) -> str:
-    """Replace canonical sections in `existing` with `new_sections` values.
+def _build_proposal_block(key: str, canonical_h: str, new_body: str,
+                          existing_body: str, today: str) -> str:
+    """Render a markdown block proposing a new section value, with a diff."""
+    diff_lines = list(difflib.unified_diff(
+        existing_body.splitlines(),
+        new_body.splitlines(),
+        fromfile="current",
+        tofile="spreadsheet",
+        lineterm="",
+    ))
+    diff_text = "\n".join(diff_lines) if diff_lines else (
+        "(no textual diff — whitespace or formatting only)"
+    )
+    if existing_body:
+        intro = (
+            f"The Smartsheets export differs from this issue's existing "
+            f"`## {canonical_h}` content. Review the proposed text and diff "
+            f"below. To accept, replace the section above with the proposed "
+            f"text and delete this block."
+        )
+    else:
+        intro = (
+            f"The Smartsheets export has content for `## {canonical_h}` but "
+            f"this issue does not yet have that section. Review and add it "
+            f"manually; delete this block when done."
+        )
+    return (
+        f"<!-- spreadsheet-import:proposal:{key} -->\n"
+        f"### Spreadsheet import: proposed {canonical_h} ({today})\n\n"
+        f"{intro}\n\n"
+        f"**Proposed content:**\n\n"
+        f"{new_body.rstrip()}\n\n"
+        f"<details><summary>Unified diff vs current</summary>\n\n"
+        f"```diff\n{diff_text}\n```\n\n"
+        f"</details>\n"
+        f"<!-- /spreadsheet-import:proposal:{key} -->"
+    )
 
-    - Sections already in `existing` get their body replaced; the heading
-      is normalised to the canonical form (e.g. ``Risk Mitigation Planning``
-      → ``Mitigation Plan``).
-    - Sections present in `new_sections` but absent from `existing` are
-      appended in canonical order.
-    - Sections in `existing` that are not canonical are preserved verbatim
-      in their original position.
-    - If `existing` has more than one heading that resolves to the same
-      canonical key, the first is replaced and subsequent duplicates are
-      preserved verbatim (no content is dropped).
+
+def merge_sections(existing: str | None, new_sections: dict[str, str],
+                   today: str | None = None) -> str:
+    """Append a 'proposed update' block for each canonical section whose
+    body in ``existing`` differs from the value in ``new_sections``.
+
+    Never modifies existing content: the canonical sections (and any other
+    headings or prose) in ``existing`` are preserved verbatim. New
+    information from the spreadsheet is appended at the end of the
+    description, wrapped in HTML markers so re-runs can detect and
+    refresh prior proposal blocks rather than duplicate them.
+
+    Behavior per canonical section:
+
+    - If the existing canonical section body matches the spreadsheet
+      value (modulo trailing whitespace and blank-line runs), nothing
+      is appended for that section.
+    - If they differ, OR if no matching canonical heading exists in
+      ``existing``, a proposal block is appended at the end of the
+      description with the new content and a unified diff for review.
+    - Sections not present in ``new_sections`` are ignored.
+
+    Idempotent: prior proposal blocks (matched by HTML markers) are
+    stripped before new ones are appended, so re-running the importer
+    with unchanged spreadsheet data does not accumulate duplicate
+    blocks.
     """
-    text = existing or ""
+    if today is None:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Strip out any proposal blocks added by a prior run; otherwise
+    # we'd compare the spreadsheet against our own earlier proposal.
+    text = _strip_proposals(existing or "").rstrip()
+
+    # Find the first body for each canonical section already in text.
     matches = list(HEADING_RE.finditer(text))
-
-    out: list[str] = []
-    prefix = (text[:matches[0].start()] if matches else text).rstrip()
-    if prefix:
-        out.append(prefix + "\n\n")
-
-    seen: set[str] = set()
+    existing_bodies: dict[str, str] = {}
     for i, m in enumerate(matches):
-        heading = m.group(2)
-        level = m.group(1)
-        key = canonical_key(heading)
+        key = canonical_key(m.group(2))
+        if not key or key in existing_bodies:
+            continue
         body_start = m.end()
         body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        body = text[body_start:body_end].strip()
+        existing_bodies[key] = text[body_start:body_end].strip()
 
-        if key in seen:
-            # Already replaced this canonical key once. Preserve the
-            # duplicate verbatim (with its original heading) rather than
-            # silently dropping it — the user can clean up later.
-            chunk = f"{level} {heading}\n\n"
-            if body:
-                chunk += body + "\n\n"
-            out.append(chunk)
-            continue
-        if key and key in new_sections:
-            canonical_h = next(s[1] for s in SECTIONS if s[0] == key)
-            out.append(f"## {canonical_h}\n\n{new_sections[key].strip()}\n\n")
-            seen.add(key)
-        else:
-            chunk = f"{level} {heading}\n\n"
-            if body:
-                chunk += body + "\n\n"
-            out.append(chunk)
-
-    # Append canonical sections that didn't already exist.
+    # Build proposal blocks for canonical keys whose bodies differ.
+    proposals: list[str] = []
     for key, canonical_h, _ in SECTIONS:
-        if key in new_sections and key not in seen:
-            out.append(f"## {canonical_h}\n\n{new_sections[key].strip()}\n\n")
+        if key not in new_sections:
+            continue
+        new_body = new_sections[key].strip()
+        existing_body = existing_bodies.get(key, "")
+        if _normalise_body(existing_body) == _normalise_body(new_body):
+            continue
+        proposals.append(_build_proposal_block(
+            key, canonical_h, new_body, existing_body, today,
+        ))
 
-    return "".join(out).rstrip() + "\n"
+    if not proposals:
+        return (text + "\n") if text else ""
+
+    sep = "\n\n" if text else ""
+    return f"{text}{sep}" + "\n\n".join(proposals) + "\n"
 
 
 def parse_issue_url(url: str) -> dict | None:
