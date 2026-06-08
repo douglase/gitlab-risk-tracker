@@ -123,7 +123,9 @@ def merge_sections(existing: str | None, new_sections: dict[str, str]) -> str:
       appended in canonical order.
     - Sections in `existing` that are not canonical are preserved verbatim
       in their original position.
-    - Duplicate canonical sections in `existing` are deduplicated.
+    - If `existing` has more than one heading that resolves to the same
+      canonical key, the first is replaced and subsequent duplicates are
+      preserved verbatim (no content is dropped).
     """
     text = existing or ""
     matches = list(HEADING_RE.finditer(text))
@@ -143,7 +145,13 @@ def merge_sections(existing: str | None, new_sections: dict[str, str]) -> str:
         body = text[body_start:body_end].strip()
 
         if key in seen:
-            # Drop duplicate canonical heading; first wins.
+            # Already replaced this canonical key once. Preserve the
+            # duplicate verbatim (with its original heading) rather than
+            # silently dropping it — the user can clean up later.
+            chunk = f"{level} {heading}\n\n"
+            if body:
+                chunk += body + "\n\n"
+            out.append(chunk)
             continue
         if key and key in new_sections:
             canonical_h = next(s[1] for s in SECTIONS if s[0] == key)
