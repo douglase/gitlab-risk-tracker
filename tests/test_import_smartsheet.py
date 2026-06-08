@@ -88,8 +88,13 @@ def test_missing_section_appends_proposal_not_canonical_heading() -> None:
         "intro text was lost"
     assert "spreadsheet-import:proposal:notes" in out, \
         "missing-section path did not produce a proposal block"
-    assert "## Notes\n\nSpreadsheet notes." not in out, \
-        "missing-section path silently added a canonical section"
+    # Check for actual H2 heading lines, not substring match — "### Notes"
+    # in the proposal block contains "## Notes" as a substring.
+    h2_notes_lines = [
+        line for line in out.splitlines() if line.strip() == "## Notes"
+    ]
+    assert h2_notes_lines == [], \
+        "missing-section path silently added a canonical H2 section"
 
 
 def test_empty_existing_description_only_appends_proposals() -> None:
