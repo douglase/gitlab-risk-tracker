@@ -72,8 +72,9 @@ import requests
 
 
 # Mirrors build.py CANONICAL_SECTIONS, but with a *broader* synonym list
-# so the importer also recognises legacy heading text. This is a one-way
-# migration: legacy headings get replaced with the canonical form.
+# so the importer also recognises legacy heading text.
+# Note: legacy headings are *preserved* in-place; the canonical form is
+# only used for proposal block labels and for matching/comparison.
 # Order matters: missing sections are appended in this order.
 SECTIONS: list[tuple[str, str, list[str]]] = [
     ("risk_description", "Risk Description",
