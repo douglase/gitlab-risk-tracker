@@ -323,7 +323,7 @@ query($group: ID!, $cursor: String) {
 
 
 def fetch_work_items() -> list[dict]:
-    items: list[dict] = []
+    raw: list[dict] = []
     cursor: str | None = None
     while True:
         data = graphql(WORK_ITEMS_QUERY, {"group": GROUP_PATH, "cursor": cursor})
@@ -331,10 +331,32 @@ def fetch_work_items() -> list[dict]:
         if not group:
             sys.exit(f"Group '{GROUP_PATH}' not found or token lacks access.")
         conn = group["workItems"]
-        items.extend(conn["nodes"])
+        raw.extend(conn["nodes"])
         if not conn["pageInfo"]["hasNextPage"]:
             break
         cursor = conn["pageInfo"]["endCursor"]
+    # Defensive dedup by global id. GitLab's recursive group.workItems
+    # pagination should not return the same node twice, but if it ever
+    # does (e.g. due to a project being shared across two subgroups or
+    # a concurrent create during pagination), we'd double-count the
+    # issue in the matrix and the risks table.
+    seen: set[str] = set()
+    items: list[dict] = []
+    duplicates = 0
+    for it in raw:
+        gid = it.get("id")
+        if gid and gid in seen:
+            duplicates += 1
+            continue
+        if gid:
+            seen.add(gid)
+        items.append(it)
+    if duplicates:
+        print(
+            f"warning: fetch_work_items returned {duplicates} duplicate node(s); "
+            f"deduped by id.",
+            file=sys.stderr,
+        )
     return items
 
 
@@ -648,6 +670,35 @@ def build_matrix(items: list[dict]) -> dict:
     return {"cells": cells, "unscored": unscored}
 
 
+def git_version() -> str:
+    """Short identifier for the version of this tool that produced the
+    dashboard. Prefers ``CI_COMMIT_SHORT_SHA`` / ``CI_COMMIT_SHA`` env
+    vars (set by GitLab CI), falls back to ``git rev-parse HEAD`` for
+    local runs, and returns ``"unknown"`` if neither is available
+    (e.g. running outside a git checkout)."""
+    sha = (
+        os.environ.get("CI_COMMIT_SHORT_SHA")
+        or os.environ.get("CI_COMMIT_SHA")
+        or os.environ.get("GITHUB_SHA")
+    )
+    if sha:
+        return sha[:12]
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(ROOT), capture_output=True, text=True,
+            timeout=5, check=False,
+        )
+        if result.returncode == 0:
+            out = result.stdout.strip()
+            if out:
+                return out[:12]
+    except (OSError, Exception):
+        pass
+    return "unknown"
+
+
 def render(items: list[dict], history: list[dict],
            server_url: str = "", project_path: str = "") -> None:
     env = Environment(
@@ -732,6 +783,34 @@ def render(items: list[dict], history: list[dict],
             "sections": rendered_sections,
         })
     risks_table.sort(key=lambda r: (-r["score"], -r["consequence"], -r["likelihood"]))
+
+    # Risks without a Consequence × Likelihood score don't belong on the
+    # 5×5 matrix or the sortable risks table (no severity to sort by).
+    # Surface them in their own list so the team notices and assigns
+    # values in GitLab.
+    unscored_table: list[dict] = []
+    for it in items:
+        c, l = it["consequence"], it["likelihood"]
+        if c is not None and l is not None and 1 <= c <= 5 and 1 <= l <= 5:
+            continue
+        unscored_table.append({
+            "iid": it["iid"],
+            "title": it["title"],
+            "display_title": it["display_title"],
+            "web_url": it["web_url"],
+            "state": it["state"],
+            "consequence": c,
+            "likelihood": l,
+            "priority": it["priority"],
+            "risk_types": it["risk_types"],
+            "subsystems": it["subsystems"],
+            "products": it["products"],
+            "other_labels": it["other_labels"],
+            "assignees": it["assignees"],
+            "created_at": it.get("created_at"),
+            "closed_at": it.get("closed_at"),
+        })
+    unscored_table.sort(key=lambda r: (r["state"], r["iid"]))
     html = tpl.render(
         group_path=GROUP_PATH,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -752,7 +831,10 @@ def render(items: list[dict], history: list[dict],
         product_patterns=PRODUCT_PATTERNS,
         server_url=server_url.rstrip("/") if server_url else "",
         project_path=project_path,
+        git_sha=git_version(),
+        commit_url=os.environ.get("CI_PROJECT_URL", "").rstrip("/"),
         risks_table_json=json.dumps(risks_table),
+        unscored_table_json=json.dumps(unscored_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,
     )
