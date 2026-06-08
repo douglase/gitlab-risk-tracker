@@ -170,46 +170,50 @@ def canonical_key(heading: str) -> str | None:
 
 
 def _build_proposal_block(key: str, canonical_h: str, new_body: str,
-                          existing_body: str, today: str) -> str:
-    """Render a markdown block proposing a new section value, with a diff."""
-    diff_lines = list(difflib.unified_diff(
-        existing_body.splitlines(),
-        new_body.splitlines(),
-        fromfile="current",
-        tofile="spreadsheet",
-        lineterm="",
-    ))
-    diff_text = "\n".join(diff_lines) if diff_lines else (
-        "(no textual diff — whitespace or formatting only)"
-    )
+                          existing_body: str, today: str,
+                          source_label: str) -> str:
+    """Render a markdown block proposing a new section value.
+
+    Layout:
+      * H3 heading naming the canonical section + date.
+      * One-line italic attribution: ``*imported from <source>, on <date>*``.
+      * The new content.
+      * If the issue had a prior version of this section, a unified diff
+        in a ```diff code block (always visible — never inside <details>).
+        Sections with no prior content omit the diff entirely.
+    """
+    parts: list[str] = [
+        f"<!-- spreadsheet-import:proposal:{key} -->",
+        f"### Spreadsheet import: proposed {canonical_h} ({today})",
+        "",
+        f"*imported from {source_label}, on {today}*",
+        "",
+        new_body.rstrip(),
+    ]
     if existing_body:
-        intro = (
-            f"The Smartsheets export differs from this issue's existing "
-            f"`## {canonical_h}` content. Review the proposed text and diff "
-            f"below. To accept, replace the section above with the proposed "
-            f"text and delete this block."
+        diff_lines = list(difflib.unified_diff(
+            existing_body.splitlines(),
+            new_body.splitlines(),
+            fromfile="current",
+            tofile="spreadsheet",
+            lineterm="",
+        ))
+        diff_text = "\n".join(diff_lines) if diff_lines else (
+            "(no textual diff — whitespace or formatting only)"
         )
-    else:
-        intro = (
-            f"The Smartsheets export has content for `## {canonical_h}` but "
-            f"this issue does not yet have that section. Review and add it "
-            f"manually; delete this block when done."
-        )
-    return (
-        f"<!-- spreadsheet-import:proposal:{key} -->\n"
-        f"### Spreadsheet import: proposed {canonical_h} ({today})\n\n"
-        f"{intro}\n\n"
-        f"**Proposed content:**\n\n"
-        f"{new_body.rstrip()}\n\n"
-        f"<details><summary>Unified diff vs current</summary>\n\n"
-        f"```diff\n{diff_text}\n```\n\n"
-        f"</details>\n"
-        f"<!-- /spreadsheet-import:proposal:{key} -->"
-    )
+        parts.extend([
+            "",
+            "```diff",
+            diff_text,
+            "```",
+        ])
+    parts.append(f"<!-- /spreadsheet-import:proposal:{key} -->")
+    return "\n".join(parts)
 
 
 def merge_sections(existing: str | None, new_sections: dict[str, str],
-                   today: str | None = None) -> str:
+                   today: str | None = None,
+                   source_label: str = "spreadsheet") -> str:
     """Append a 'proposed update' block for each canonical section whose
     body in ``existing`` differs from the value in ``new_sections``.
 
@@ -265,7 +269,7 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
         if _normalise_body(existing_body) == _normalise_body(new_body):
             continue
         proposals.append(_build_proposal_block(
-            key, canonical_h, new_body, existing_body, today,
+            key, canonical_h, new_body, existing_body, today, source_label,
         ))
 
     if not proposals:
@@ -495,7 +499,9 @@ def main() -> int:
                 "description": current,
             }) + "\n")
 
-            new_desc = merge_sections(current, new_sections)
+            new_desc = merge_sections(
+                current, new_sections, source_label=args.xlsx.name,
+            )
             if new_desc == current:
                 stats["no_change"] += 1
                 continue
