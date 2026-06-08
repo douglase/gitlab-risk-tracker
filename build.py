@@ -60,6 +60,27 @@ def match_products(labels: list[str]) -> list[str]:
     return sorted(matched)
 
 
+def risk_label_filter() -> str:
+    """Substring (case-insensitive) that must appear in at least one of
+    an issue's labels for that issue to be included in the dashboard.
+
+    Set the ``RISK_LABEL_FILTER`` env var to override; default ``"risk"``.
+    Set it to the empty string to disable the filter and include every
+    work item the GraphQL query returns.
+    """
+    return os.environ.get("RISK_LABEL_FILTER", "risk")
+
+
+def is_risk_labelled(item: dict) -> bool:
+    """True iff at least one of `item`'s labels contains the
+    ``risk_label_filter()`` substring (case-insensitive). When the
+    filter is empty, returns True for everything."""
+    needle = risk_label_filter().lower()
+    if not needle:
+        return True
+    return any(needle in lbl.lower() for lbl in item.get("labels", []))
+
+
 MAX_PREVIEW_CHARS = 280
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
@@ -416,6 +437,7 @@ def normalize(item: dict) -> dict:
     products = match_products(labels)
     other_labels = sorted(set(labels) - set(SUBSYSTEMS) - set(products))
     return {
+        "labels": labels,
         "id": item["id"],
         "iid": item["iid"],
         "title": item["title"],
@@ -845,7 +867,16 @@ def render(items: list[dict], history: list[dict],
 def main() -> None:
     schema_check()
     raw = fetch_work_items()
-    items = [normalize(it) for it in raw]
+    all_items = [normalize(it) for it in raw]
+    items = [it for it in all_items if is_risk_labelled(it)]
+    if len(items) < len(all_items):
+        print(
+            f"Filtered to {len(items)} of {len(all_items)} work items by "
+            f"RISK_LABEL_FILTER={risk_label_filter()!r} (case-insensitive "
+            f"substring match on label names). Set RISK_LABEL_FILTER='' "
+            f"to include everything.",
+            file=sys.stderr,
+        )
     history = load_history()
     history = update_history(items, history)
     render(

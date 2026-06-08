@@ -63,6 +63,12 @@ own group** (e.g. ``platform/security`` or ``my-org/risks``).
      - Full path of the group to scan, e.g. ``stp`` or
        ``my-org/risks``. Defaults to ``stp`` if unset, so set it unless
        your group really is named ``stp``.
+   * - ``RISK_LABEL_FILTER``
+     - Substring (case-insensitive) that must appear in at least one of
+       an issue's labels for it to be included on the dashboard.
+       Defaults to ``"risk"`` so general bug-reports / feature-requests
+       living alongside your risks don't clutter the matrix. Set to the
+       empty string to disable the filter and include every work item.
 
 Running the tests
 -----------------
