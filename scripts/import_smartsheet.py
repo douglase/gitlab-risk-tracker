@@ -175,7 +175,10 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     """Render a markdown block proposing a new section value.
 
     Layout:
-      * H3 heading naming the canonical section + date.
+      * H3 heading with just the canonical section name (e.g.
+        ``### Risk Description``). H3, not H2, so the existing canonical
+        H2 section above remains the first match for the dashboard's
+        section parser when both are present.
       * One-line italic attribution: ``*imported from <source>, on <date>*``.
       * The new content.
       * If the issue had a prior version of this section, a unified diff
@@ -184,7 +187,7 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     """
     parts: list[str] = [
         f"<!-- spreadsheet-import:proposal:{key} -->",
-        f"### Spreadsheet import: proposed {canonical_h} ({today})",
+        f"### {canonical_h}",
         "",
         f"*imported from {source_label}, on {today}*",
         "",
