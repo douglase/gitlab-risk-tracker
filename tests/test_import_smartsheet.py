@@ -1,0 +1,390 @@
+"""Tests for scripts/import_smartsheet.py.
+
+Focus areas (the user-facing guarantees the importer makes):
+- **Non-destructive**: existing canonical section bodies are NEVER
+  modified. Spreadsheet content that differs is appended as a clearly-
+  marked proposal block; the user reviews and accepts manually.
+- **Preserves existing and non-canonical content**: intro prose,
+  `## See also`-style headings, and untouched canonical sections all
+  survive a run unchanged.
+- **Idempotent**: running the importer twice with the same spreadsheet
+  data leaves the description in a stable state — proposal blocks are
+  refreshed in place via HTML markers, not duplicated.
+
+Run::
+
+    python tests/test_import_smartsheet.py
+    # or
+    python -m pytest tests/test_import_smartsheet.py -v
+
+The tests target the pure-Python helpers (merge_sections,
+parse_issue_url, canonical_key, extract_sections, find_link). The
+network and Excel I/O paths are not exercised here — they're thin
+wrappers and the user verifies them via ``--dry-run`` before any real
+run.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import import_smartsheet as imp  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Non-destructive guarantees
+# ---------------------------------------------------------------------------
+
+def test_match_is_noop() -> None:
+    """Existing body matches spreadsheet → no proposal block emitted."""
+    existing = "## Risk Description\n\nSame content.\n"
+    out = imp.merge_sections(
+        existing, {"risk_description": "Same content."}, today="2026-06-04"
+    )
+    assert "spreadsheet-import:proposal" not in out, \
+        f"unexpected proposal block:\n{out}"
+    assert out.strip() == existing.strip(), \
+        f"existing description was modified:\n{out}"
+
+
+def test_match_tolerates_whitespace_differences() -> None:
+    """Trailing whitespace and blank-line runs are normalized for comparison."""
+    existing = "## Notes\n\nLine one.\n   \n\nLine two.\n"
+    spreadsheet = "Line one.\n\nLine two."
+    out = imp.merge_sections(
+        existing, {"notes": spreadsheet}, today="2026-06-04"
+    )
+    assert "spreadsheet-import:proposal" not in out, \
+        f"whitespace-only difference triggered a proposal:\n{out}"
+
+
+def test_differ_appends_proposal_existing_preserved() -> None:
+    """Different body → existing untouched; proposal appended after it."""
+    existing = "## Risk Description\n\nOld assessment.\n"
+    out = imp.merge_sections(
+        existing, {"risk_description": "New assessment."}, today="2026-06-04"
+    )
+    assert "## Risk Description\n\nOld assessment." in out, \
+        "existing canonical section was modified"
+    assert "spreadsheet-import:proposal:risk_description" in out, \
+        "proposal marker missing"
+    assert "New assessment." in out, "proposed content missing"
+    assert out.index("Old assessment.") < out.index("New assessment."), \
+        "proposal not appended after existing section"
+
+
+def test_missing_section_appends_proposal_not_canonical_heading() -> None:
+    """Issue has no matching canonical heading → proposal block, NOT a
+    bare canonical section. The user must still review before adopting."""
+    existing = "Some intro paragraph, no headings.\n"
+    out = imp.merge_sections(
+        existing, {"notes": "Spreadsheet notes."}, today="2026-06-04"
+    )
+    assert "Some intro paragraph, no headings." in out, \
+        "intro text was lost"
+    assert "spreadsheet-import:proposal:notes" in out, \
+        "missing-section path did not produce a proposal block"
+    assert "## Notes\n\nSpreadsheet notes." not in out, \
+        "missing-section path silently added a canonical section"
+
+
+def test_empty_existing_description_only_appends_proposals() -> None:
+    """Empty starting description → every spreadsheet section becomes a
+    proposal block. Nothing is written as canonical content directly,
+    so the dashboard parser will not surface it until the user accepts."""
+    out = imp.merge_sections(
+        "",
+        {"risk_description": "RD body.", "notes": "Notes body."},
+        today="2026-06-04",
+    )
+    assert "spreadsheet-import:proposal:risk_description" in out
+    assert "spreadsheet-import:proposal:notes" in out
+    # Inspect the actual heading lines (not substrings) — none of them
+    # should be H2 canonical sections. Proposal headings are H3.
+    h2_headings = [
+        line for line in out.splitlines()
+        if line.startswith("## ") and not line.startswith("### ")
+    ]
+    canonical_h2 = [
+        h for h in h2_headings
+        if imp.canonical_key(h.removeprefix("## ").strip()) is not None
+    ]
+    assert canonical_h2 == [], (
+        f"expected no canonical H2 sections in append-only output, got: "
+        f"{canonical_h2!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Preserving non-canonical content
+# ---------------------------------------------------------------------------
+
+def test_non_canonical_headings_preserved() -> None:
+    """Headings the dashboard doesn't recognize survive unchanged."""
+    existing = (
+        "Top intro.\n\n"
+        "## Risk Description\n\nOriginal body.\n\n"
+        "## See also\n\n"
+        "- Link to doc A\n"
+        "- Link to doc B\n\n"
+        "## Mitigation Plan\n\nOriginal plan.\n"
+    )
+    out = imp.merge_sections(
+        existing,
+        {"risk_description": "Updated description."},
+        today="2026-06-04",
+    )
+    assert "Top intro." in out, "intro lost"
+    assert "## See also\n\n- Link to doc A\n- Link to doc B" in out, \
+        "non-canonical heading body lost"
+    assert "## Risk Description\n\nOriginal body." in out, \
+        "canonical section we're updating was modified"
+    assert "## Mitigation Plan\n\nOriginal plan." in out, \
+        "untouched canonical section was modified"
+    assert "spreadsheet-import:proposal:risk_description" in out, \
+        "no proposal for updated section"
+    assert "spreadsheet-import:proposal:mitigation_plan" not in out, \
+        "untouched section got a spurious proposal block"
+
+
+def test_legacy_heading_preserved_and_matched() -> None:
+    """Legacy ``## Action Plan / Notes`` heading maps to the ``notes``
+    canonical key for comparison, so matching content stays a no-op AND
+    the legacy heading text is preserved (no overwrite of any kind)."""
+    existing = "## Action Plan / Notes\n\nShared content.\n"
+    out = imp.merge_sections(
+        existing, {"notes": "Shared content."}, today="2026-06-04"
+    )
+    assert "spreadsheet-import:proposal" not in out, \
+        "match path incorrectly emitted a proposal block"
+    assert "## Action Plan / Notes" in out, \
+        "legacy heading text was modified"
+
+
+def test_legacy_heading_emits_proposal_when_body_differs() -> None:
+    """Legacy heading + body differs → proposal block appended;
+    legacy heading is still NOT renamed."""
+    existing = "## Action Plan / Notes\n\nOld notes.\n"
+    out = imp.merge_sections(
+        existing, {"notes": "Spreadsheet notes."}, today="2026-06-04"
+    )
+    assert "## Action Plan / Notes\n\nOld notes." in out, \
+        "legacy section body was modified"
+    assert "spreadsheet-import:proposal:notes" in out
+    assert "Spreadsheet notes." in out
+
+
+# ---------------------------------------------------------------------------
+# Idempotency
+# ---------------------------------------------------------------------------
+
+def test_idempotent_same_data_byte_for_byte() -> None:
+    """Same spreadsheet input twice → identical output."""
+    existing = "## Risk Description\n\nOriginal body.\n"
+    once = imp.merge_sections(
+        existing, {"risk_description": "Updated."}, today="2026-06-04"
+    )
+    twice = imp.merge_sections(
+        once, {"risk_description": "Updated."}, today="2026-06-04"
+    )
+    assert once == twice, (
+        f"NOT idempotent:\n--once--\n{once!r}\n--twice--\n{twice!r}"
+    )
+
+
+def test_proposal_refreshes_when_spreadsheet_changes() -> None:
+    """Spreadsheet text changes between runs → previous block stripped,
+    new block written in its place (NOT duplicated)."""
+    existing = "## Risk Description\n\nOriginal body.\n"
+    first = imp.merge_sections(
+        existing, {"risk_description": "First proposal."}, today="2026-06-04"
+    )
+    second = imp.merge_sections(
+        first, {"risk_description": "Second proposal."}, today="2026-06-04"
+    )
+    open_markers = second.count(
+        "<!-- spreadsheet-import:proposal:risk_description -->"
+    )
+    close_markers = second.count(
+        "<!-- /spreadsheet-import:proposal:risk_description -->"
+    )
+    assert open_markers == 1, f"open markers: {open_markers}, expected 1"
+    assert close_markers == 1, f"close markers: {close_markers}, expected 1"
+    assert "First proposal." not in second, \
+        "stale proposal text from prior run was not stripped"
+    assert "Second proposal." in second
+
+
+def test_acceptance_workflow_clears_proposal_on_next_run() -> None:
+    """If the user manually accepts a proposal — i.e., updates the
+    canonical section above to match the spreadsheet content and deletes
+    the proposal block — the next run should leave a clean description."""
+    accepted = "## Risk Description\n\nAccepted content.\n"
+    out = imp.merge_sections(
+        accepted, {"risk_description": "Accepted content."}, today="2026-06-04"
+    )
+    assert "spreadsheet-import:proposal" not in out, \
+        "user-accepted change triggered a new proposal block"
+    assert out.strip() == accepted.strip()
+
+
+def test_idempotency_across_multiple_sections() -> None:
+    """All three canonical sections; mix of match/differ/missing must
+    re-run cleanly."""
+    existing = (
+        "## Risk Description\n\nDesc body unchanged.\n\n"
+        "## Notes\n\nOld notes.\n"
+    )
+    sections = {
+        "risk_description": "Desc body unchanged.",     # match  → no proposal
+        "notes": "New notes.",                          # differ → proposal
+        "mitigation_plan": "Plan body.",                # missing → proposal
+    }
+    once = imp.merge_sections(existing, sections, today="2026-06-04")
+    twice = imp.merge_sections(once, sections, today="2026-06-04")
+    assert once == twice, "not idempotent across mixed match/differ/missing"
+    # Sanity: exactly the two expected proposals, no more.
+    assert once.count("<!-- spreadsheet-import:proposal:notes -->") == 1
+    assert once.count("<!-- spreadsheet-import:proposal:mitigation_plan -->") == 1
+    assert "<!-- spreadsheet-import:proposal:risk_description -->" not in once
+
+
+# ---------------------------------------------------------------------------
+# Lower-level helpers
+# ---------------------------------------------------------------------------
+
+def test_strip_proposals_removes_complete_block() -> None:
+    text = (
+        "## Risk Description\n\nBody.\n\n"
+        "<!-- spreadsheet-import:proposal:risk_description -->\n"
+        "### Proposed update\nContent here.\n"
+        "<!-- /spreadsheet-import:proposal:risk_description -->\n"
+    )
+    out = imp._strip_proposals(text)
+    assert "spreadsheet-import:proposal" not in out
+    assert "## Risk Description\n\nBody." in out
+
+
+def test_strip_proposals_handles_multiple_blocks() -> None:
+    text = (
+        "<!-- spreadsheet-import:proposal:risk_description -->\nA\n"
+        "<!-- /spreadsheet-import:proposal:risk_description -->\n"
+        "Middle text.\n"
+        "<!-- spreadsheet-import:proposal:notes -->\nB\n"
+        "<!-- /spreadsheet-import:proposal:notes -->\n"
+    )
+    out = imp._strip_proposals(text)
+    assert "spreadsheet-import:proposal" not in out
+    assert "Middle text." in out
+
+
+def test_canonical_key_synonyms() -> None:
+    cases = [
+        ("Risk Description", "risk_description"),
+        ("description", "risk_description"),
+        ("Summary", "risk_description"),
+        ("Notes", "notes"),
+        ("Action Plan / Notes", "notes"),
+        ("Action Plan/Notes", "notes"),
+        ("Action Plan", "notes"),
+        ("Mitigation Plan", "mitigation_plan"),
+        ("Risk Mitigation Planning", "mitigation_plan"),
+        ("Mitigation", "mitigation_plan"),
+        ("Some Random Heading", None),
+        ("", None),
+    ]
+    for heading, expected in cases:
+        got = imp.canonical_key(heading)
+        assert got == expected, (
+            f"canonical_key({heading!r}) -> {got!r}, expected {expected!r}"
+        )
+
+
+def test_parse_issue_url() -> None:
+    cases = [
+        (
+            "https://gitlab.example.com/stp/risks/-/issues/123",
+            {"server": "https://gitlab.example.com",
+             "project_path": "stp/risks", "iid": 123},
+        ),
+        (
+            "https://gitlab.sc.ascendingnode.tech:8443/stp/sub/proj/-/work_items/42",
+            {"server": "https://gitlab.sc.ascendingnode.tech:8443",
+             "project_path": "stp/sub/proj", "iid": 42},
+        ),
+        ("not a url", None),
+        ("https://example.com/no/issue/segment", None),
+    ]
+    for url, expected in cases:
+        got = imp.parse_issue_url(url)
+        assert got == expected, f"parse_issue_url({url!r}) -> {got!r}"
+
+
+def test_extract_sections_from_row() -> None:
+    row = {
+        "Risk Description": "Body of risk.",
+        "Action Plan/ Notes": "Notes body.",
+        "Risk Mitigation Planning": "Plan body.",
+        "Some Other Column": "Ignored.",
+    }
+    out = imp.extract_sections(row)
+    assert out == {
+        "risk_description": "Body of risk.",
+        "notes": "Notes body.",
+        "mitigation_plan": "Plan body.",
+    }, f"unexpected: {out}"
+
+
+def test_extract_sections_skips_empty_cells() -> None:
+    row = {
+        "Risk Description": "  ",       # whitespace only
+        "Action Plan/ Notes": None,
+        "Risk Mitigation Planning": "Plan body.",
+    }
+    out = imp.extract_sections(row)
+    assert out == {"mitigation_plan": "Plan body."}, f"unexpected: {out}"
+
+
+def test_find_link_picks_gitlab_link_column() -> None:
+    assert imp.find_link({
+        "GitLab Link": "https://example.com/x/y/-/issues/1",
+        "Other": "no",
+    }) == "https://example.com/x/y/-/issues/1"
+    # Case-insensitive header match.
+    assert imp.find_link({"gitlab link ": "url-2", "Random": "x"}) == "url-2"
+    # No matching column.
+    assert imp.find_link({"Foo": "bar"}) is None
+
+
+# ---------------------------------------------------------------------------
+# Runner (so `python tests/test_import_smartsheet.py` works alongside pytest)
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    tests = sorted(
+        ((name, fn) for name, fn in globals().items()
+         if name.startswith("test_") and callable(fn)),
+        key=lambda t: t[0],
+    )
+    print(f"Running {len(tests)} tests from {__file__}")
+    failures: list[tuple[str, str]] = []
+    for name, fn in tests:
+        try:
+            fn()
+            print(f"  ok  {name}")
+        except AssertionError as e:
+            print(f"  FAIL {name}: {e}")
+            failures.append((name, str(e)))
+        except Exception as e:
+            print(f"  ERR  {name}: {type(e).__name__}: {e}")
+            failures.append((name, f"{type(e).__name__}: {e}"))
+    if failures:
+        print(f"\n{len(failures)} failed:")
+        for n, msg in failures:
+            print(f"  - {n}: {msg}")
+        sys.exit(1)
+    print(f"\n{len(tests)} passed")
