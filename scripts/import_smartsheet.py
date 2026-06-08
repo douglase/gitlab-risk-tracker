@@ -39,10 +39,12 @@ redirect-method downgrade GitLab applies on 301/302.
 
 **Moved issues** (an issue physically moved to a different project,
 which leaves a closed placeholder at the original iid with
-``moved_to_id`` pointing to the new issue's numeric id) are detected
-and skipped with a clear warning. Writing to the placeholder would
-silently update the wrong location. Re-export the spreadsheet (or
-manually update the row's ``GitLab Link``) to the new URL and re-run.
+``moved_to_id`` pointing to the new issue's numeric id) are
+automatically followed via ``GET /api/v4/issues/<global-id>``. A
+stderr line records the source → destination chain for each follow,
+and the PUT lands on the live destination using its current
+``project_id``. A chain of up to 5 hops is supported (in case an
+issue was moved multiple times); deeper chains abort with an error.
 
 Quick start::
 
@@ -342,6 +344,18 @@ def get_issue(session: requests.Session, server: str, project: str, iid: int) ->
     return r.json()
 
 
+def get_issue_by_id(session: requests.Session, server: str, issue_id: int) -> dict:
+    """Fetch a single issue by its global numeric id (not the per-project iid).
+
+    Used to follow ``moved_to_id`` to the destination issue without
+    needing to know the destination project's path or iid up front.
+    """
+    url = f"{server}/api/v4/issues/{issue_id}"
+    r = session.get(url, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
 def put_description(session: requests.Session, server: str,
                     project: str | int, iid: int, description: str) -> dict:
     """PUT a new description for an issue.
@@ -395,7 +409,7 @@ def main() -> int:
     session.headers["Authorization"] = f"Bearer {token}"
 
     stats = dict(total=0, no_link=0, no_sections=0, no_change=0,
-                 moved=0, would_update=0, updated=0, errors=0)
+                 followed_move=0, would_update=0, updated=0, errors=0)
 
     processed = 0
     with args.backup.open("a") as backup_f:
@@ -427,21 +441,52 @@ def main() -> int:
                 stats["errors"] += 1
                 continue
 
-            # If the issue was moved to another project (not just the
-            # project being renamed — GitLab handles renames transparently
-            # via project_id), the spreadsheet URL is pointing at a closed
-            # placeholder. Writing to it would update the wrong place.
-            # Skip and log so the user can update the spreadsheet link.
-            moved_to_id = issue.get("moved_to_id")
-            if moved_to_id:
+            # If the issue was moved (the spreadsheet URL points at a
+            # closed placeholder), follow the chain to the live destination
+            # so the write lands on the right issue. Renames are handled
+            # transparently elsewhere via numeric project_id on the PUT —
+            # this branch only fires for actual project-to-project moves.
+            move_chain: list[str] = []
+            move_followed = False
+            while issue.get("moved_to_id"):
+                if len(move_chain) >= 5:
+                    print(
+                        f"  ! {project}#{iid}: move chain too deep "
+                        f"(>{len(move_chain)} hops). Aborting follow.",
+                        file=sys.stderr,
+                    )
+                    issue = None
+                    break
+                move_chain.append(f"{project}#{iid}")
+                try:
+                    issue = get_issue_by_id(
+                        session, server, issue["moved_to_id"]
+                    )
+                except requests.HTTPError as e:
+                    print(
+                        f"  ! Following move for {move_chain[0]} "
+                        f"(moved_to_id={move_chain[-1] and issue and issue.get('moved_to_id')}): "
+                        f"{e}",
+                        file=sys.stderr,
+                    )
+                    issue = None
+                    break
+                iid = issue.get("iid", iid)
+                project = (
+                    _project_path_from_web_url(issue.get("web_url"))
+                    or project
+                )
+                move_followed = True
+            if issue is None:
+                stats["errors"] += 1
+                continue
+            if move_followed:
                 print(
-                    f"  ! {project}#{iid} was moved (placeholder issue; "
-                    f"moved_to_id={moved_to_id}). Skipping — update the "
-                    f"spreadsheet's GitLab Link to the new issue and re-run.",
+                    f"  > followed move chain: "
+                    f"{' → '.join(move_chain + [f'{project}#{iid}'])}",
                     file=sys.stderr,
                 )
-                stats["moved"] += 1
-                continue
+                stats["followed_move"] += 1
 
             current = issue.get("description") or ""
             backup_f.write(json.dumps({
