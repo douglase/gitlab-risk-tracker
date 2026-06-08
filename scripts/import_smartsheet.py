@@ -271,6 +271,16 @@ def parse_issue_url(url: str) -> dict | None:
     }
 
 
+def _project_path_from_web_url(web_url: str | None) -> str | None:
+    """Extract the canonical project path from an issue's web_url. Returns
+    the path GitLab itself uses (after any rename/move) so a PUT lands
+    on the right project without depending on a redirect."""
+    if not web_url:
+        return None
+    parsed = parse_issue_url(web_url)
+    return parsed["project_path"] if parsed else None
+
+
 def read_xlsx(path: Path, sheet: str | None) -> list[dict]:
     import openpyxl  # lazy: only needed for the main CLI flow
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
@@ -320,9 +330,17 @@ def get_issue(session: requests.Session, server: str, project: str, iid: int) ->
     return r.json()
 
 
-def put_description(session: requests.Session, server: str, project: str,
-                    iid: int, description: str) -> dict:
-    url = f"{server}/api/v4/projects/{quote(project, safe='')}/issues/{iid}"
+def put_description(session: requests.Session, server: str,
+                    project: str | int, iid: int, description: str) -> dict:
+    """PUT a new description for an issue.
+
+    `project` may be either the URL-encoded full path
+    (``group/subgroup/project``) or the numeric project ID. Numeric IDs
+    are recommended after a GET so we sidestep rename redirects — GitLab
+    follows 301/302 on GET but not on PUT, which produces a 405.
+    """
+    project_segment = str(project) if isinstance(project, int) else quote(project, safe="")
+    url = f"{server}/api/v4/projects/{project_segment}/issues/{iid}"
     r = session.put(url, json={"description": description}, timeout=30)
     r.raise_for_status()
     return r.json()
@@ -409,7 +427,21 @@ def main() -> int:
                 stats["no_change"] += 1
                 continue
 
-            print(f"\n--- {project}#{iid} ---  ({issue.get('web_url') or link})")
+            # Prefer the canonical project path or numeric id from the GET
+            # response — the spreadsheet URL may point at an old path that
+            # GitLab now 301-redirects, and that redirect doesn't preserve
+            # the method on PUT (results in 405 Method Not Allowed).
+            project_for_put: str | int = (
+                issue.get("project_id")
+                or _project_path_from_web_url(issue.get("web_url"))
+                or project
+            )
+
+            display_project = (
+                _project_path_from_web_url(issue.get("web_url")) or project
+            )
+            print(f"\n--- {display_project}#{iid} ---  "
+                  f"({issue.get('web_url') or link})")
             if args.dry_run:
                 diff = "".join(difflib.unified_diff(
                     current.splitlines(keepends=True),
@@ -420,11 +452,13 @@ def main() -> int:
                 stats["would_update"] += 1
             else:
                 try:
-                    put_description(session, server, project, iid, new_desc)
+                    put_description(session, server, project_for_put,
+                                    iid, new_desc)
                     print("  ✓ updated")
                     stats["updated"] += 1
                 except requests.HTTPError as e:
-                    print(f"  ! PUT {project}#{iid}: {e}", file=sys.stderr)
+                    print(f"  ! PUT {display_project}#{iid}: {e}",
+                          file=sys.stderr)
                     stats["errors"] += 1
 
             processed += 1
