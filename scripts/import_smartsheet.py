@@ -251,8 +251,7 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
         ))
 
     if not proposals:
-        return (text + "\n") if text else ""
-
+        return text
     sep = "\n\n" if text else ""
     return f"{text}{sep}" + "\n\n".join(proposals) + "\n"
 
