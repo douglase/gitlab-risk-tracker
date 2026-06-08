@@ -670,6 +670,35 @@ def build_matrix(items: list[dict]) -> dict:
     return {"cells": cells, "unscored": unscored}
 
 
+def git_version() -> str:
+    """Short identifier for the version of this tool that produced the
+    dashboard. Prefers ``CI_COMMIT_SHORT_SHA`` / ``CI_COMMIT_SHA`` env
+    vars (set by GitLab CI), falls back to ``git rev-parse HEAD`` for
+    local runs, and returns ``"unknown"`` if neither is available
+    (e.g. running outside a git checkout)."""
+    sha = (
+        os.environ.get("CI_COMMIT_SHORT_SHA")
+        or os.environ.get("CI_COMMIT_SHA")
+        or os.environ.get("GITHUB_SHA")
+    )
+    if sha:
+        return sha[:12]
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(ROOT), capture_output=True, text=True,
+            timeout=5, check=False,
+        )
+        if result.returncode == 0:
+            out = result.stdout.strip()
+            if out:
+                return out[:12]
+    except (OSError, Exception):
+        pass
+    return "unknown"
+
+
 def render(items: list[dict], history: list[dict],
            server_url: str = "", project_path: str = "") -> None:
     env = Environment(
@@ -802,6 +831,8 @@ def render(items: list[dict], history: list[dict],
         product_patterns=PRODUCT_PATTERNS,
         server_url=server_url.rstrip("/") if server_url else "",
         project_path=project_path,
+        git_sha=git_version(),
+        commit_url=os.environ.get("CI_PROJECT_URL", "").rstrip("/"),
         risks_table_json=json.dumps(risks_table),
         unscored_table_json=json.dumps(unscored_table),
         section_meta=section_meta,

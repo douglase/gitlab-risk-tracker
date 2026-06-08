@@ -90,6 +90,7 @@
   footer.dashboard-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 1rem 0 .5rem 0; }
   footer.dashboard-footer a { color: var(--muted); text-decoration: none; }
   footer.dashboard-footer a:hover { color: #1565c0; text-decoration: underline; }
+  footer.dashboard-footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
   .table-wrap { overflow-x: auto; max-width: 100%; }
   table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
   table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
@@ -322,6 +323,15 @@
 {% endif %}
 
 <footer class="dashboard-footer">
+  {% if git_sha and git_sha != "unknown" %}
+  Built from
+  {% if commit_url %}
+    <a href="{{ commit_url }}/-/commit/{{ git_sha }}" target="_blank" rel="noopener"><code>{{ git_sha }}</code></a>
+  {% else %}
+    <code>{{ git_sha }}</code>
+  {% endif %}
+  ·
+  {% endif %}
   Documentation:
   <a href="https://douglase.github.io/gitlab-risk-tracker/" target="_blank" rel="noopener">gitlab-risk-tracker docs</a>
   ·
