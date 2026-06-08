@@ -266,6 +266,10 @@ def _backdate_history(history_path: Path) -> None:
 def _run_main_with_items(items: list[dict]) -> None:
     os.environ.setdefault("CI_SERVER_URL", "https://gitlab.example.com")
     os.environ.setdefault("CI_PROJECT_PATH", "stp/gitlab-risk-tracker")
+    # Disable the production RISK_LABEL_FILTER for these fixtures
+    # (which use labels like 'thermal' / 'optics' / 'TO12- ...' that
+    # don't contain "risk"). The filter itself has its own unit test.
+    os.environ.setdefault("RISK_LABEL_FILTER", "")
     with patch.object(build, "schema_check", lambda: None), \
          patch.object(build, "fetch_work_items", lambda: items):
         build.main()
@@ -650,8 +654,49 @@ def test_clean_title() -> None:
         assert got == expected, f"clean_title({raw!r}) -> {got!r}, expected {expected!r}"
 
 
+def test_risk_label_filter_case_insensitive_substring() -> None:
+    """``is_risk_labelled`` matches the configured needle anywhere in any
+    label, case-insensitively. Empty filter is a pass-through."""
+    saved = os.environ.get("RISK_LABEL_FILTER")
+    try:
+        os.environ["RISK_LABEL_FILTER"] = "risk"
+        cases = [
+            ({"labels": ["risk"]},                          True),
+            ({"labels": ["RISK"]},                          True),
+            ({"labels": ["Risk"]},                          True),
+            ({"labels": ["risk-register"]},                 True),
+            ({"labels": ["RISK#WCC100"]},                   True),
+            ({"labels": ["some-label-with-risk-in-it"]},    True),
+            ({"labels": ["thermal", "Risk#ESC042"]},        True),  # any one matches
+            ({"labels": ["thermal", "optics"]},             False),
+            ({"labels": []},                                False),
+            ({},                                            False),  # missing 'labels'
+        ]
+        for item, expected in cases:
+            got = build.is_risk_labelled(item)
+            assert got == expected, (
+                f"is_risk_labelled({item}) -> {got}, expected {expected}"
+            )
+
+        # Empty filter → pass-through.
+        os.environ["RISK_LABEL_FILTER"] = ""
+        assert build.is_risk_labelled({"labels": ["thermal"]})
+        assert build.is_risk_labelled({"labels": []})
+
+        # Different needle.
+        os.environ["RISK_LABEL_FILTER"] = "hazard"
+        assert build.is_risk_labelled({"labels": ["safety-hazard"]})
+        assert not build.is_risk_labelled({"labels": ["risk"]})
+    finally:
+        if saved is None:
+            os.environ.pop("RISK_LABEL_FILTER", None)
+        else:
+            os.environ["RISK_LABEL_FILTER"] = saved
+
+
 if __name__ == "__main__":
     import tempfile
+    test_risk_label_filter_case_insensitive_substring()
     test_render_markdown_sanitization()
     test_parse_sections()
     test_clean_title()

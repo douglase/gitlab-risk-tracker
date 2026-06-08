@@ -70,6 +70,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -121,12 +122,58 @@ ISSUE_URL_RE = re.compile(
 )
 
 
-PROPOSAL_RE = re.compile(
+# Proposal-block markers come in two forms:
+#   - new format with a per-row source_id:
+#       <!-- spreadsheet-import:proposal:KEY:SID -->
+#   - legacy format without sid (written by earlier versions of this
+#     script). Stripped on every run so users see a clean upgrade path.
+NEW_PROPOSAL_RE = re.compile(
+    r"<!-- spreadsheet-import:proposal:(?P<key>[\w-]+):[\w-]+ -->"
+    r".*?"
+    r"<!-- /spreadsheet-import:proposal:(?P=key):[\w-]+ -->\n?",
+    re.DOTALL,
+)
+LEGACY_PROPOSAL_RE = re.compile(
     r"<!-- spreadsheet-import:proposal:(?P<key>[\w-]+) -->"
     r".*?"
     r"<!-- /spreadsheet-import:proposal:(?P=key) -->\n?",
     re.DOTALL,
 )
+# Back-compat alias for code/tests that imported PROPOSAL_RE.
+PROPOSAL_RE = LEGACY_PROPOSAL_RE
+
+_SAFE_SID_RE = re.compile(r"[^a-zA-Z0-9_-]+")
+
+
+def _slugify_source_id(s: str | None) -> str:
+    """Make a source identifier safe to embed in an HTML comment marker.
+
+    Letters / digits / dash / underscore are preserved; anything else
+    collapses to a dash. Empty input falls back to ``default`` so the
+    marker shape stays stable.
+    """
+    if not s:
+        return "default"
+    slug = _SAFE_SID_RE.sub("-", str(s)).strip("-").lower()
+    return slug or "default"
+
+
+def _hash_sections(sections: dict[str, str]) -> str:
+    """Stable 8-char identifier derived from a row's section content.
+
+    Used as the source_id when the spreadsheet has no Unique Risk ID
+    column. Same content → same hash → idempotent re-runs even without
+    an explicit ID. Different content gets a different hash, so rows
+    with distinct text coexist as separate proposal blocks rather than
+    overwriting each other.
+    """
+    h = hashlib.sha256()
+    for key in sorted(sections.keys()):
+        h.update(key.encode("utf-8"))
+        h.update(b"\0")
+        h.update(sections[key].encode("utf-8"))
+        h.update(b"\0")
+    return h.hexdigest()[:8]
 
 
 def _normalise_heading(h: str) -> str:
@@ -155,10 +202,44 @@ def _normalise_body(body: str) -> str:
     return "\n".join(out).strip()
 
 
+_BLANK_RUN_RE = re.compile(r"\n{3,}")
+
+
+def _normalise_blank_runs(text: str) -> str:
+    """Collapse runs of 3+ newlines (≥2 blank lines) to a single blank
+    line. Used after stripping a proposal block to clean up the empty
+    space that would otherwise be left where the block used to sit."""
+    return _BLANK_RUN_RE.sub("\n\n", text)
+
+
 def _strip_proposals(text: str) -> str:
-    """Remove any blocks previously appended by this script so re-runs
-    don't accumulate duplicates."""
-    return PROPOSAL_RE.sub("", text or "")
+    """Remove ANY proposal block (any source_id, plus legacy no-sid).
+
+    Used by tests and any caller that just wants a clean view of an
+    issue's description. merge_sections uses a tighter strip that only
+    removes blocks for the current row's source_id.
+    """
+    text = NEW_PROPOSAL_RE.sub("", text or "")
+    text = LEGACY_PROPOSAL_RE.sub("", text)
+    return _normalise_blank_runs(text)
+
+
+def _strip_proposals_for_sid(text: str, sid: str) -> str:
+    """Remove only the proposal blocks tagged with `sid`, plus any
+    legacy (no-sid) blocks. Other rows' blocks survive untouched —
+    that's what lets multiple spreadsheet rows targeting the same
+    issue produce multiple coexisting proposal blocks.
+    """
+    sid_esc = re.escape(sid)
+    pattern = re.compile(
+        r"<!-- spreadsheet-import:proposal:(?P<key>[\w-]+):" + sid_esc + r" -->"
+        r".*?"
+        r"<!-- /spreadsheet-import:proposal:(?P=key):" + sid_esc + r" -->\n?",
+        re.DOTALL,
+    )
+    text = pattern.sub("", text or "")
+    text = LEGACY_PROPOSAL_RE.sub("", text)
+    return _normalise_blank_runs(text)
 
 
 def canonical_key(heading: str) -> str | None:
@@ -169,9 +250,26 @@ def canonical_key(heading: str) -> str | None:
     return None
 
 
+def _first_canonical_bodies(text: str) -> dict[str, str]:
+    """Return {canonical_key: body_text} from the first canonical heading
+    for each key encountered in `text`."""
+    bodies: dict[str, str] = {}
+    matches = list(HEADING_RE.finditer(text))
+    for i, m in enumerate(matches):
+        key = canonical_key(m.group(2))
+        if not key or key in bodies:
+            continue
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        bodies[key] = text[start:end].strip()
+    return bodies
+
+
 def _build_proposal_block(key: str, canonical_h: str, new_body: str,
                           existing_body: str, today: str,
-                          source_label: str) -> str:
+                          source_label: str, source_id: str,
+                          unique_id: str | None = None,
+                          modification_date: str | None = None) -> str:
     """Render a markdown block proposing a new section value.
 
     Layout:
@@ -179,14 +277,20 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         ``### Risk Description``). H3, not H2, so the existing canonical
         H2 section above remains the first match for the dashboard's
         section parser when both are present.
-      * One-line italic attribution: ``*imported from <source>, on <date>*``.
       * The new content.
       * If the issue had a prior version of this section, a unified diff
         in a ```diff code block (always visible — never inside <details>).
         Sections with no prior content omit the diff entirely.
+      * Italic attribution footer: ``*(imported from <source>, on <date>)*``
+        — when a Unique Risk ID is available it's woven in:
+        ``*(imported from <source>, Unique Risk ID: <id>, on <date>)*``.
+
+    The proposal's HTML-comment markers include the source_id so multiple
+    spreadsheet rows targeting the same issue each get their own block.
     """
+    sid = _slugify_source_id(source_id)
     parts: list[str] = [
-        f"<!-- spreadsheet-import:proposal:{key} -->",
+        f"<!-- spreadsheet-import:proposal:{key}:{sid} -->",
         f"### {canonical_h}",
         "",
         new_body.rstrip(),
@@ -208,20 +312,24 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
             diff_text,
             "```",
         ])
-    # Attribution last — keeps the imported content as the primary text
-    # the dashboard renders for net-new sections; the source note is a
-    # subdued footer.
-    parts.extend([
-        "",
-        f"*(imported from {source_label}, on {today})*",
-    ])
-    parts.append(f"<!-- /spreadsheet-import:proposal:{key} -->")
+    attribution_bits = [f"imported from {source_label}"]
+    if unique_id:
+        attribution_bits.append(f"Unique Risk ID: {unique_id}")
+    if modification_date:
+        attribution_bits.append(f"Modification Date: {modification_date}")
+    attribution_bits.append(f"on {today}")
+    attribution = f"*({', '.join(attribution_bits)})*"
+    parts.extend(["", attribution])
+    parts.append(f"<!-- /spreadsheet-import:proposal:{key}:{sid} -->")
     return "\n".join(parts)
 
 
 def merge_sections(existing: str | None, new_sections: dict[str, str],
                    today: str | None = None,
-                   source_label: str = "spreadsheet") -> str:
+                   source_label: str = "spreadsheet",
+                   source_id: str | None = None,
+                   unique_id: str | None = None,
+                   modification_date: str | None = None) -> str:
     """Append a 'proposed update' block for each canonical section whose
     body in ``existing`` differs from the value in ``new_sections``.
 
@@ -241,43 +349,46 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
       description with the new content and a unified diff for review.
     - Sections not present in ``new_sections`` are ignored.
 
-    Idempotent: prior proposal blocks (matched by HTML markers) are
-    stripped before new ones are appended, so re-running the importer
-    with unchanged spreadsheet data does not accumulate duplicate
-    blocks.
+    ``source_id`` tags each proposal block's HTML markers so multiple
+    spreadsheet rows targeting the same issue produce coexisting blocks
+    instead of overwriting each other. On re-run, only blocks tagged
+    with the same source_id are stripped before re-emitting — other
+    rows' blocks survive untouched. ``source_id`` defaults to a stable
+    hash of ``new_sections`` when not provided, so multiple rows with
+    distinct content still coexist even without a Unique Risk ID.
+
+    ``unique_id``, when present, is rendered inline in the attribution
+    line as ``Unique Risk ID: <id>`` for human readability.
     """
     if today is None:
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if source_id is None:
+        source_id = _hash_sections(new_sections)
+    sid = _slugify_source_id(source_id)
 
-    # Strip out any proposal blocks added by a prior run; otherwise
-    # we'd compare the spreadsheet against our own earlier proposal.
-    # rstrip() is essential for idempotency — without it, the trailing
-    # newline written by the previous run accumulates each time we
-    # concatenate text + sep ("\n\n") below.
-    text = _strip_proposals(existing or "").rstrip()
+    # Two views of the existing description:
+    #   - `text`: the version we'll write back to GitLab. Strips this
+    #     row's prior proposal blocks (so re-runs refresh in place) plus
+    #     any legacy no-sid blocks (so an older format upgrades cleanly).
+    #     Blocks from OTHER rows targeting the same issue stay put.
+    #   - `clean`: every proposal block of any sid removed. Used only to
+    #     identify the issue's canonical section bodies for the diff —
+    #     we never want to diff against another row's H3 proposal.
+    text = _strip_proposals_for_sid(existing or "", sid).rstrip()
+    clean = _strip_proposals(existing or "")
+    real_bodies = _first_canonical_bodies(clean)
 
-    # Find the first body for each canonical section already in text.
-    matches = list(HEADING_RE.finditer(text))
-    existing_bodies: dict[str, str] = {}
-    for i, m in enumerate(matches):
-        key = canonical_key(m.group(2))
-        if not key or key in existing_bodies:
-            continue
-        body_start = m.end()
-        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        existing_bodies[key] = text[body_start:body_end].strip()
-
-    # Build proposal blocks for canonical keys whose bodies differ.
     proposals: list[str] = []
     for key, canonical_h, _ in SECTIONS:
         if key not in new_sections:
             continue
         new_body = new_sections[key].strip()
-        existing_body = existing_bodies.get(key, "")
+        existing_body = real_bodies.get(key, "")
         if _normalise_body(existing_body) == _normalise_body(new_body):
             continue
         proposals.append(_build_proposal_block(
-            key, canonical_h, new_body, existing_body, today, source_label,
+            key, canonical_h, new_body, existing_body, today,
+            source_label, source_id, unique_id, modification_date,
         ))
 
     if not proposals:
@@ -347,6 +458,43 @@ def find_link(row: dict) -> str | None:
         if "gitlab" in kl and "link" in kl:
             return str(v)
     return None
+
+
+_UNIQUE_ID_HEADERS = {"unique risk id", "risk id", "risk_id", "risk #"}
+_MOD_DATE_HEADERS = {
+    "modification date", "modified date", "last modified",
+    "modified", "updated", "date modified",
+}
+
+
+def _find_row_value(row: dict, accepted: set[str]) -> str | None:
+    """Return the first non-empty value whose normalised header is in
+    `accepted`. Date-typed Excel cells become ``YYYY-MM-DD`` strings."""
+    for header, value in row.items():
+        if value is None:
+            continue
+        if header is None:
+            continue
+        key = " ".join(str(header).strip().lower().split())
+        if key in accepted:
+            if hasattr(value, "strftime"):
+                # openpyxl returns datetime objects for date-typed cells.
+                return value.strftime("%Y-%m-%d")
+            text = str(value).strip()
+            if text:
+                return text
+    return None
+
+
+def find_unique_id(row: dict) -> str | None:
+    """Look for a 'Unique Risk ID' (or close synonym) column in a row."""
+    return _find_row_value(row, _UNIQUE_ID_HEADERS)
+
+
+def find_modification_date(row: dict) -> str | None:
+    """Look for a Modification Date column in a row. Returns ``YYYY-MM-DD``
+    for datetime-typed cells, otherwise the raw stripped string."""
+    return _find_row_value(row, _MOD_DATE_HEADERS)
 
 
 def get_issue(session: requests.Session, server: str, project: str, iid: int) -> dict:
@@ -507,8 +655,14 @@ def main() -> int:
                 "description": current,
             }) + "\n")
 
+            unique_id = find_unique_id(row)
+            modification_date = find_modification_date(row)
             new_desc = merge_sections(
-                current, new_sections, source_label=args.xlsx.name,
+                current, new_sections,
+                source_label=args.xlsx.name,
+                source_id=unique_id,  # falls back to row-hash when None
+                unique_id=unique_id,
+                modification_date=modification_date,
             )
             if new_desc == current:
                 stats["no_change"] += 1
