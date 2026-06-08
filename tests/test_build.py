@@ -338,9 +338,9 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     rd = row1["sections"]["risk_description"]
     assert "<strong>limited</strong>" in rd["html"], "markdown bold not rendered to HTML"
     assert "atmosphere" in rd["preview"]
-    ap = row1["sections"]["action_plan"]
+    ap = row1["sections"]["notes"]
     assert "<li>" in ap["html"], "markdown list not rendered to HTML"
-    assert row1["sections"]["risk_mitigation"]["full_text"].startswith("If shield margin")
+    assert row1["sections"]["mitigation_plan"]["full_text"].startswith("If shield margin")
     # Score is computed.
     assert row1["score"] == 15
 
@@ -620,12 +620,12 @@ Mitigation body.
     out = build.parse_sections(md)
     assert "risk_description" in out
     assert out["risk_description"].startswith("Body of description.")
-    assert "action_plan" in out
-    assert "- Do thing" in out["action_plan"]
-    assert "risk_mitigation" in out
-    assert out["risk_mitigation"].startswith("Mitigation body.")
+    assert "notes" in out
+    assert "- Do thing" in out["notes"]
+    assert "mitigation_plan" in out
+    assert out["mitigation_plan"].startswith("Mitigation body.")
     # "Mitigation Plan" canonical heading also resolves.
-    assert "risk_mitigation" in build.parse_sections("## Mitigation Plan\nbody")
+    assert "mitigation_plan" in build.parse_sections("## Mitigation Plan\nbody")
 
     # Missing description / unknown heading -> not present, no crash.
     assert build.parse_sections(None) == {}
