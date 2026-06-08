@@ -32,6 +32,18 @@ strips its own prior blocks before evaluating, so unchanged data
 produces no churn and updated spreadsheet rows refresh the block in
 place.
 
+**Renamed projects** are handled transparently: GitLab follows the
+rename on GET, and the script uses the issue's numeric ``project_id``
+for the subsequent PUT so write requests aren't affected by the
+redirect-method downgrade GitLab applies on 301/302.
+
+**Moved issues** (an issue physically moved to a different project,
+which leaves a closed placeholder at the original iid with
+``moved_to_id`` pointing to the new issue's numeric id) are detected
+and skipped with a clear warning. Writing to the placeholder would
+silently update the wrong location. Re-export the spreadsheet (or
+manually update the row's ``GitLab Link``) to the new URL and re-run.
+
 Quick start::
 
     pip install -r requirements.txt openpyxl
@@ -383,7 +395,7 @@ def main() -> int:
     session.headers["Authorization"] = f"Bearer {token}"
 
     stats = dict(total=0, no_link=0, no_sections=0, no_change=0,
-                 would_update=0, updated=0, errors=0)
+                 moved=0, would_update=0, updated=0, errors=0)
 
     processed = 0
     with args.backup.open("a") as backup_f:
@@ -413,6 +425,22 @@ def main() -> int:
             except requests.HTTPError as e:
                 print(f"  ! GET {project}#{iid}: {e}", file=sys.stderr)
                 stats["errors"] += 1
+                continue
+
+            # If the issue was moved to another project (not just the
+            # project being renamed — GitLab handles renames transparently
+            # via project_id), the spreadsheet URL is pointing at a closed
+            # placeholder. Writing to it would update the wrong place.
+            # Skip and log so the user can update the spreadsheet link.
+            moved_to_id = issue.get("moved_to_id")
+            if moved_to_id:
+                print(
+                    f"  ! {project}#{iid} was moved (placeholder issue; "
+                    f"moved_to_id={moved_to_id}). Skipping — update the "
+                    f"spreadsheet's GitLab Link to the new issue and re-run.",
+                    file=sys.stderr,
+                )
+                stats["moved"] += 1
                 continue
 
             current = issue.get("description") or ""
