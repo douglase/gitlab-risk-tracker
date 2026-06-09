@@ -180,6 +180,30 @@ def test_missing_section_appends_proposal_not_canonical_heading() -> None:
         "missing-section path silently added a canonical H2 section"
 
 
+def test_existing_rd_no_notes_spreadsheet_notes_get_appended() -> None:
+    """Issue has an explicit ## Risk Description heading but NO ## Notes
+    section at all. Spreadsheet supplies a Notes value. The importer
+    must append a Notes proposal block — and leave the existing Risk
+    Description heading & body untouched."""
+    existing = "## Risk Description\n\nSome existing risk text.\n"
+    out = imp.merge_sections(
+        existing,
+        {"notes": "These notes from the spreadsheet should appear."},
+        today="2026-06-04",
+        source_id="LPY042",
+    )
+    # Existing canonical section is preserved verbatim.
+    assert "## Risk Description\n\nSome existing risk text." in out, \
+        "existing Risk Description section was modified"
+    # Notes proposal block added.
+    assert "spreadsheet-import:proposal:notes:lpy042" in out, \
+        "notes proposal block missing for issue with no existing Notes section"
+    assert "These notes from the spreadsheet should appear." in out
+    # Nothing about risk_description in the diff stream (it wasn't in the
+    # spreadsheet for this row).
+    assert "spreadsheet-import:proposal:risk_description" not in out
+
+
 def test_empty_existing_description_only_appends_proposals() -> None:
     """Empty starting description → every spreadsheet section becomes a
     proposal block. Nothing is written as canonical content directly,
