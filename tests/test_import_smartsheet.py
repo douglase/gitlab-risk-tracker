@@ -569,6 +569,114 @@ def test_find_link_picks_gitlab_link_column() -> None:
 
 
 # ---------------------------------------------------------------------------
+# main() per-row diagnostics
+# ---------------------------------------------------------------------------
+
+def test_main_tags_failures_with_unique_risk_id(tmp_path=None, capsys=None) -> None:
+    """When a spreadsheet row fails (no link, unparseable URL, move-follow
+    403, PUT 403), the final '=== Rows that did not update ===' summary
+    must list the row's Unique Risk ID so the user knows which
+    spreadsheet row to fix — not just the GitLab iid."""
+    import io
+    import sys as _sys
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+    import requests
+
+    rows = [
+        # LPY001: valid, will succeed with a proposal block.
+        {"GitLab Link": "https://gl.example.com/p/-/issues/1",
+         "Unique Risk ID": "LPY001",
+         "Risk Description": "Body 1."},
+        # LPY008: spreadsheet GitLab Link points at an issue that is moved,
+        # and following the move 403s. This is the user's reported bug.
+        {"GitLab Link": "https://gl.example.com/p/-/issues/2",
+         "Unique Risk ID": "LPY008",
+         "Risk Description": "Body 8.",
+         "Action Plan/ Notes": "Important notes that aren't showing up."},
+        # LPY099: no GitLab Link at all in the row.
+        {"Unique Risk ID": "LPY099",
+         "Risk Description": "Body 99."},
+        # No Unique Risk ID: falls back to "row N" label.
+        {"GitLab Link": "not a real url",
+         "Risk Description": "Body unparseable."},
+    ]
+
+    class _FakeResp:
+        def __init__(self, status, body):
+            self.status_code = status
+            self._body = body
+        def json(self): return self._body
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                err = requests.HTTPError(f"{self.status_code} error")
+                err.response = self
+                raise err
+
+    def fake_get(url, timeout=30):
+        # GET on the project-scoped issue endpoint.
+        if "/issues/1" in url and "projects" in url:
+            return _FakeResp(200, {
+                "iid": 1, "project_id": 100,
+                "web_url": "https://gl.example.com/p/-/issues/1",
+                "description": "Old desc 1.",
+            })
+        if "/issues/2" in url and "projects" in url:
+            # Issue #2 was moved.
+            return _FakeResp(200, {
+                "iid": 2, "project_id": 100,
+                "web_url": "https://gl.example.com/p/-/issues/2",
+                "description": "Old desc 2.",
+                "moved_to_id": 9999,
+            })
+        # GET on the global-issues endpoint — destination project blocks us.
+        if url.endswith("/issues/9999"):
+            return _FakeResp(403, {})
+        return _FakeResp(404, {})
+
+    def fake_put(url, json=None, timeout=30):
+        return _FakeResp(200, {})
+
+    with tempfile.TemporaryDirectory() as d:
+        xlsx_path = Path(d) / "Risk Register - Task Order 5.xlsx"
+        xlsx_path.write_bytes(b"")  # contents irrelevant; we mock read_xlsx
+        backup_path = Path(d) / "backup.jsonl"
+        argv = ["import_smartsheet.py", "--xlsx", str(xlsx_path),
+                "--token", "fake-token", "--dry-run",
+                "--backup", str(backup_path)]
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        with patch.object(imp, "read_xlsx", return_value=rows), \
+             patch.object(imp, "requests") as mock_requests, \
+             patch.object(_sys, "argv", argv), \
+             patch.object(_sys, "stdout", buf_out), \
+             patch.object(_sys, "stderr", buf_err):
+            sess = mock_requests.Session.return_value
+            sess.headers = {}
+            sess.get.side_effect = fake_get
+            sess.put.side_effect = fake_put
+            mock_requests.HTTPError = requests.HTTPError
+            rc = imp.main()
+
+    out = buf_out.getvalue() + "\n" + buf_err.getvalue()
+
+    # Per-row tagging is present in error/info lines.
+    assert "LPY008" in out, "LPY008 row tag should appear in output"
+    assert "LPY099" in out, "LPY099 (no link) row tag should appear"
+
+    # The final failures summary lists each bad row with its Unique Risk
+    # ID + reason, so the user can scan it.
+    assert "=== Rows that did not update ===" in out, \
+        "missing final failure summary"
+    assert "LPY008" in out.split("=== Rows that did not update ===")[1], \
+        "LPY008 (move-follow 403) should appear in the failure summary"
+    assert "LPY099" in out.split("=== Rows that did not update ===")[1], \
+        "LPY099 (no GitLab Link) should appear in the failure summary"
+    # Exit non-zero because there were errors.
+    assert rc != 0, "main() should return non-zero when errors > 0"
+
+
+# ---------------------------------------------------------------------------
 # Runner (so `python tests/test_import_smartsheet.py` works alongside pytest)
 # ---------------------------------------------------------------------------
 
