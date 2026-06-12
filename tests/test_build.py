@@ -634,7 +634,56 @@ Mitigation body.
     # Missing description / unknown heading -> not present, no crash.
     assert build.parse_sections(None) == {}
     assert build.parse_sections("") == {}
+    # Non-canonical heading with no leading prose -> still empty.
     assert build.parse_sections("## Unknown\nbody") == {}
+
+
+def test_parse_sections_bare_body_fallback() -> None:
+    """A description with no canonical Risk Description heading falls
+    back to using the leading prose (text before the first heading, or
+    the whole body if there are no headings) as the Risk Description.
+    """
+    # Whole body is bare prose -> all of it becomes risk_description.
+    bare = "If fixture does not fit on the air cart, then we cannot move within the facility."
+    out = build.parse_sections(bare)
+    assert out.get("risk_description") == bare
+
+    # Leading prose followed by an unrelated heading -> prose still
+    # becomes risk_description (the unrelated heading is ignored).
+    mixed = (
+        "Bare prose risk statement here.\n\n"
+        "## Unknown\n"
+        "other content\n"
+    )
+    out = build.parse_sections(mixed)
+    assert out.get("risk_description", "").startswith("Bare prose risk statement here.")
+
+    # Leading prose + an explicit ## Notes heading -> Notes wins for
+    # notes, leading prose becomes risk_description.
+    mixed_notes = (
+        "Bare description.\n\n"
+        "## Notes\n"
+        "- a note\n"
+    )
+    out = build.parse_sections(mixed_notes)
+    assert out.get("risk_description") == "Bare description."
+    assert out.get("notes") == "- a note"
+
+    # An explicit ## Risk Description heading wins over leading prose:
+    # leading prose is NOT used as a fallback when the canonical
+    # heading is present.
+    with_header = (
+        "Leading prose that should be ignored.\n\n"
+        "## Risk Description\n\n"
+        "Actual described risk.\n"
+    )
+    out = build.parse_sections(with_header)
+    assert out["risk_description"] == "Actual described risk."
+
+    # Whitespace-only leading prose -> no fallback, risk_description absent.
+    assert "risk_description" not in build.parse_sections(
+        "   \n\n## Unknown\nbody"
+    )
 
 
 def test_clean_title() -> None:
@@ -699,6 +748,7 @@ if __name__ == "__main__":
     test_risk_label_filter_case_insensitive_substring()
     test_render_markdown_sanitization()
     test_parse_sections()
+    test_parse_sections_bare_body_fallback()
     test_clean_title()
     with tempfile.TemporaryDirectory() as d:
         test_every_snapshot_field_change_is_retained(Path(d))

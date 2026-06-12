@@ -113,7 +113,15 @@ def _canonical_section_key(heading: str) -> str | None:
 
 
 def parse_sections(markdown_text: str | None) -> dict[str, str]:
-    """Parse markdown into {canonical_key: raw_markdown_content}."""
+    """Parse markdown into {canonical_key: raw_markdown_content}.
+
+    Fallback: when no ``risk_description`` heading is present but the
+    description has leading prose (any text before the first markdown
+    heading, or the whole body if there are no headings at all), that
+    prose becomes the Risk Description. This lets issues whose body is
+    just a one-liner risk statement — no ``## Risk Description`` header —
+    still surface their description in the dashboard.
+    """
     if not markdown_text:
         return {}
     sections: dict[str, str] = {}
@@ -125,6 +133,11 @@ def parse_sections(markdown_text: str | None) -> dict[str, str]:
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_text)
         sections[key] = markdown_text[start:end].strip()
+    if "risk_description" not in sections:
+        leading_end = matches[0].start() if matches else len(markdown_text)
+        leading = markdown_text[:leading_end].strip()
+        if leading:
+            sections["risk_description"] = leading
     return sections
 
 

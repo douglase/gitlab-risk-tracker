@@ -252,7 +252,16 @@ def canonical_key(heading: str) -> str | None:
 
 def _first_canonical_bodies(text: str) -> dict[str, str]:
     """Return {canonical_key: body_text} from the first canonical heading
-    for each key encountered in `text`."""
+    for each key encountered in `text`.
+
+    Fallback for ``risk_description``: if no explicit canonical heading
+    matches, the description's leading prose (text before the first
+    markdown heading, or the whole body if it has no headings) is used.
+    Mirrors :func:`build.parse_sections` so an issue whose body is just
+    a bare risk statement — no ``## Risk Description`` header — is
+    treated as already having that content, suppressing duplicate
+    proposal blocks on re-import.
+    """
     bodies: dict[str, str] = {}
     matches = list(HEADING_RE.finditer(text))
     for i, m in enumerate(matches):
@@ -262,6 +271,11 @@ def _first_canonical_bodies(text: str) -> dict[str, str]:
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         bodies[key] = text[start:end].strip()
+    if "risk_description" not in bodies:
+        leading_end = matches[0].start() if matches else len(text)
+        leading = text[:leading_end].strip()
+        if leading:
+            bodies["risk_description"] = leading
     return bodies
 
 
@@ -570,24 +584,42 @@ def main() -> int:
 
     stats = dict(total=0, no_link=0, no_sections=0, no_change=0,
                  followed_move=0, would_update=0, updated=0, errors=0)
+    # Per-row failure log keyed by Unique Risk ID (or fallback row label).
+    # Each entry is (row_tag, reason). Printed at the end so users can see
+    # at a glance which spreadsheet rows didn't make it to GitLab and why,
+    # without having to scrub the per-row error stream.
+    failures: list[tuple[str, str]] = []
 
     processed = 0
     with args.backup.open("a") as backup_f:
-        for row in rows:
+        for row_idx, row in enumerate(rows, start=2):
+            # row_idx starts at 2 to match the xlsx row number the user sees
+            # in their spreadsheet (row 1 is the header).
             stats["total"] += 1
+            unique_id = find_unique_id(row)
+            row_tag = unique_id or f"row {row_idx}"
             link = find_link(row)
             if not link:
+                print(f"  - {row_tag}: no GitLab Link column populated",
+                      file=sys.stderr)
+                failures.append((row_tag, "no GitLab Link in spreadsheet"))
                 stats["no_link"] += 1
                 continue
             parsed = parse_issue_url(str(link))
             if not parsed:
-                print(f"  ! Unparseable GitLab Link: {link!r}", file=sys.stderr)
+                print(f"  ! {row_tag}: unparseable GitLab Link: {link!r}",
+                      file=sys.stderr)
+                failures.append((row_tag, f"unparseable GitLab Link: {link!r}"))
                 stats["no_link"] += 1
                 continue
             if args.issue and parsed["iid"] != args.issue:
                 continue
             new_sections = extract_sections(row)
             if not new_sections:
+                print(f"  - {row_tag}: no recognized section columns "
+                      f"(Risk Description / Notes / Mitigation)",
+                      file=sys.stderr)
+                failures.append((row_tag, "no recognized section columns"))
                 stats["no_sections"] += 1
                 continue
 
@@ -597,7 +629,11 @@ def main() -> int:
             try:
                 issue = get_issue(session, server, project, iid)
             except requests.HTTPError as e:
-                print(f"  ! GET {project}#{iid}: {e}", file=sys.stderr)
+                print(f"  ! {row_tag} → GET {project}#{iid}: {e}",
+                      file=sys.stderr)
+                failures.append(
+                    (row_tag, f"GET {project}#{iid} failed: {e}")
+                )
                 stats["errors"] += 1
                 continue
 
@@ -608,26 +644,36 @@ def main() -> int:
             # this branch only fires for actual project-to-project moves.
             move_chain: list[str] = []
             move_followed = False
+            move_failure_reason: str | None = None
             while issue.get("moved_to_id"):
                 if len(move_chain) >= 5:
                     print(
-                        f"  ! {project}#{iid}: move chain too deep "
+                        f"  ! {row_tag} → {project}#{iid}: move chain too deep "
                         f"(>{len(move_chain)} hops). Aborting follow.",
                         file=sys.stderr,
+                    )
+                    move_failure_reason = (
+                        f"move chain from {move_chain[0]} too deep "
+                        f"(>{len(move_chain)} hops)"
                     )
                     issue = None
                     break
                 move_chain.append(f"{project}#{iid}")
+                target_id = issue["moved_to_id"]
                 try:
-                    issue = get_issue_by_id(
-                        session, server, issue["moved_to_id"]
-                    )
+                    issue = get_issue_by_id(session, server, target_id)
                 except requests.HTTPError as e:
                     print(
-                        f"  ! Following move for {move_chain[0]} "
-                        f"(moved_to_id={move_chain[-1] and issue and issue.get('moved_to_id')}): "
-                        f"{e}",
+                        f"  ! {row_tag} → following move from "
+                        f"{move_chain[0]} (moved_to_id={target_id}): {e}\n"
+                        f"    Hint: the token needs read access to the "
+                        f"destination project, or update the spreadsheet's "
+                        f"GitLab Link to the destination URL directly.",
                         file=sys.stderr,
+                    )
+                    move_failure_reason = (
+                        f"move from {move_chain[0]} → "
+                        f"moved_to_id={target_id}: {e}"
                     )
                     issue = None
                     break
@@ -638,11 +684,12 @@ def main() -> int:
                 )
                 move_followed = True
             if issue is None:
+                failures.append((row_tag, move_failure_reason or "move-follow failed"))
                 stats["errors"] += 1
                 continue
             if move_followed:
                 print(
-                    f"  > followed move chain: "
+                    f"  > {row_tag}: followed move chain: "
                     f"{' → '.join(move_chain + [f'{project}#{iid}'])}",
                     file=sys.stderr,
                 )
@@ -655,7 +702,6 @@ def main() -> int:
                 "description": current,
             }) + "\n")
 
-            unique_id = find_unique_id(row)
             modification_date = find_modification_date(row)
             new_desc = merge_sections(
                 current, new_sections,
@@ -681,7 +727,7 @@ def main() -> int:
             display_project = (
                 _project_path_from_web_url(issue.get("web_url")) or project
             )
-            print(f"\n--- {display_project}#{iid} ---  "
+            print(f"\n--- {row_tag} → {display_project}#{iid} ---  "
                   f"({issue.get('web_url') or link})")
             if args.dry_run:
                 diff = "".join(difflib.unified_diff(
@@ -698,8 +744,11 @@ def main() -> int:
                     print("  ✓ updated")
                     stats["updated"] += 1
                 except requests.HTTPError as e:
-                    print(f"  ! PUT {display_project}#{iid}: {e}",
+                    print(f"  ! {row_tag} → PUT {display_project}#{iid}: {e}",
                           file=sys.stderr)
+                    failures.append(
+                        (row_tag, f"PUT {display_project}#{iid} failed: {e}")
+                    )
                     stats["errors"] += 1
 
             processed += 1
@@ -709,6 +758,13 @@ def main() -> int:
     print("\n=== Summary ===")
     for k, v in stats.items():
         print(f"  {k}: {v}")
+    if failures:
+        print("\n=== Rows that did not update ===")
+        # Sorted by row tag for predictable scanning; the user's spreadsheet
+        # is usually sorted by Unique Risk ID, so this matches their mental
+        # model better than insertion order.
+        for tag, reason in sorted(failures, key=lambda t: t[0]):
+            print(f"  - {tag}: {reason}")
     print(f"\nBackup of original descriptions: {args.backup}")
     return 0 if stats["errors"] == 0 else 1
 
