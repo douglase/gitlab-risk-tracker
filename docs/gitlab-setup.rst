@@ -117,6 +117,16 @@ Accepted heading synonyms (case-insensitive, trailing colon optional):
      - ``Mitigation Plan``, ``Plan``, ``Planning``, ``Mitigation``,
        ``Risk Mitigation``, ``Risk Mitigation Planning``
 
+.. note::
+
+   **Bare descriptions still work.** If an issue's description has no
+   ``Risk Description`` heading at all, the dashboard falls back to the
+   *leading prose* — everything before the first markdown heading, or
+   the whole body if there are no headings — and shows it in the Risk
+   Description column. This means a one-line risk statement with no
+   formatting still appears. The ``Notes`` and ``Mitigation Plan``
+   columns have no such fallback; they require their explicit headings.
+
 Title convention
 ----------------
 

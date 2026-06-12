@@ -32,7 +32,11 @@ per-risk score chart, and bottom risks table.
 - **Priority** — single select
 - **Risk Type** — single select
 - **Product** — multi-select; combines all ``^TO\d``, ``^ESC``, and
-  ``^WCC`` labels in your data into one dropdown
+  ``^WCC`` labels in your data into one dropdown. Only appears when at
+  least one matching label exists.
+- **Labels** — multi-select over *every* label in use across the open
+  risks (subsystem, product, and other labels alike). Only appears when
+  the data has labels.
 - **Severity tier chips** — click any of low/medium/high/critical to
   toggle filter on/off (multi-select)
 
@@ -86,6 +90,16 @@ Available columns:
 - **Other labels** — anything not matched by subsystem or product
   patterns
 
+Unscored risks
+--------------
+
+Issues that match the risk-label filter but have no valid Consequence ×
+Likelihood score (1–5 on each axis) can't be placed on the matrix or
+sorted in the main table. They are listed separately in an **Unscored
+risks** table beneath the scored table so the team notices them and
+assigns values in GitLab. This section only appears when at least one
+unscored risk exists.
+
 CSV export
 ----------
 
@@ -100,3 +114,13 @@ Edit pencils
 Each section cell has a small ✎ icon that opens the issue at the
 relevant heading anchor in a new tab. Editing happens in GitLab's
 native UI; the dashboard does not edit issues directly.
+
+Version footer
+--------------
+
+The page footer shows the short git SHA of the ``build.py`` /
+template revision that produced the dashboard, alongside links to this
+documentation and the source repository. In a GitLab deployment the SHA
+links to the matching commit (using ``CI_PROJECT_URL`` and the CI
+commit SHA), so you can always tell exactly which version of the tool
+rendered the page you're looking at.

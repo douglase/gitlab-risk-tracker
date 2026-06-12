@@ -27,6 +27,7 @@ view of "where do we stand right now and how did we get here."
    setup
    gitlab-setup
    usage
+   importer
    deployment
    contributing
    license
