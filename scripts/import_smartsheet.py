@@ -344,23 +344,27 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
                    source_id: str | None = None,
                    unique_id: str | None = None,
                    modification_date: str | None = None) -> str:
-    """Append a 'proposed update' block for each canonical section whose
+    """Insert a 'proposed update' block for each canonical section whose
     body in ``existing`` differs from the value in ``new_sections``.
 
     Never modifies existing content: the canonical sections (and any other
     headings or prose) in ``existing`` are preserved verbatim. New
-    information from the spreadsheet is appended at the end of the
-    description, wrapped in HTML markers so re-runs can detect and
-    refresh prior proposal blocks rather than duplicate them.
+    information from the spreadsheet is added as an **addendum directly
+    after the matching existing section** (not dumped at the bottom),
+    wrapped in HTML markers so re-runs can detect and refresh prior
+    proposal blocks rather than duplicate them.
 
     Behavior per canonical section:
 
     - If the existing canonical section body matches the spreadsheet
       value (modulo trailing whitespace and blank-line runs), nothing
-      is appended for that section.
-    - If they differ, OR if no matching canonical heading exists in
-      ``existing``, a proposal block is appended at the end of the
-      description with the new content and a unified diff for review.
+      is added for that section.
+    - If they differ, a proposal block with the new content and a unified
+      diff is inserted immediately after that section's existing body
+      (before the next heading) so the addendum reads in context.
+    - If no matching canonical heading exists in ``existing`` (a brand-new
+      section, or the bare-prose risk-description fallback), the proposal
+      block is appended at the end in canonical order.
     - Sections not present in ``new_sections`` are ignored.
 
     ``source_id`` tags each proposal block's HTML markers so multiple
@@ -392,7 +396,7 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
     clean = _strip_proposals(existing or "")
     real_bodies = _first_canonical_bodies(clean)
 
-    proposals: list[str] = []
+    proposals_by_key: dict[str, str] = {}
     for key, canonical_h, _ in SECTIONS:
         if key not in new_sections:
             continue
@@ -400,15 +404,95 @@ def merge_sections(existing: str | None, new_sections: dict[str, str],
         existing_body = real_bodies.get(key, "")
         if _normalise_body(existing_body) == _normalise_body(new_body):
             continue
-        proposals.append(_build_proposal_block(
+        proposals_by_key[key] = _build_proposal_block(
             key, canonical_h, new_body, existing_body, today,
             source_label, source_id, unique_id, modification_date,
-        ))
+        )
 
-    if not proposals:
+    if not proposals_by_key:
         return (text + "\n") if text else ""
-    sep = "\n\n" if text else ""
-    return f"{text}{sep}" + "\n\n".join(proposals) + "\n"
+    merged = _insert_or_append_proposals(text, proposals_by_key)
+    merged = _normalise_blank_runs(merged).rstrip()
+    return merged + "\n"
+
+
+def _proposal_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans of every proposal block (new-format and legacy) in
+    `text`. Used to tell a *real* canonical heading apart from the
+    ``### Risk Description`` heading that lives inside another row's
+    proposal block, so insertion anchors on real sections only."""
+    spans: list[tuple[int, int]] = []
+    for rx in (NEW_PROPOSAL_RE, LEGACY_PROPOSAL_RE):
+        for m in rx.finditer(text):
+            spans.append((m.start(), m.end()))
+    return spans
+
+
+def _insert_or_append_proposals(text: str,
+                                proposals_by_key: dict[str, str]) -> str:
+    """Place each proposal block right after the *existing* canonical
+    section it refers to, rather than dumping them all at the end.
+
+    For a section that already has a real heading in ``text`` (e.g.
+    ``## Notes``), the proposal is inserted just before the next real
+    canonical/other heading — i.e. immediately after that section's body,
+    as an addendum. Sections that don't yet exist in ``text`` (and the
+    bare-prose fallback) are appended at the end in canonical order.
+
+    "Real" headings exclude any heading that lives inside another row's
+    proposal block, so addenda group after the section they belong to and
+    re-runs stay stable.
+    """
+    if not text:
+        blocks = [proposals_by_key[k] for k, _, _ in SECTIONS
+                  if k in proposals_by_key]
+        return "\n\n".join(blocks)
+
+    spans = _proposal_spans(text)
+
+    def in_proposal(pos: int) -> bool:
+        return any(s <= pos < e for s, e in spans)
+
+    real_headings = [m for m in HEADING_RE.finditer(text)
+                     if not in_proposal(m.start())]
+    # section_end_for_key: where the first real occurrence of each canonical
+    # section's content stops = start of the *next real heading*, or EOF.
+    # Using the next real heading (not the next proposal block) means a
+    # re-run appends this row's refreshed block after any sibling addenda
+    # already sitting under the section, keeping order stable.
+    section_end_for_key: dict[str, int] = {}
+    for idx, m in enumerate(real_headings):
+        k = canonical_key(m.group(2))
+        if k and k not in section_end_for_key:
+            section_end_for_key[k] = (
+                real_headings[idx + 1].start()
+                if idx + 1 < len(real_headings) else len(text)
+            )
+
+    inserts: list[tuple[int, str]] = []
+    appended: list[str] = []
+    for key, _, _ in SECTIONS:
+        if key not in proposals_by_key:
+            continue
+        block = proposals_by_key[key]
+        if key in section_end_for_key:
+            inserts.append((section_end_for_key[key], block))
+        else:
+            appended.append(block)
+
+    # Apply insertions highest-offset-first so lower offsets stay valid.
+    result = text
+    for offset, block in sorted(inserts, key=lambda t: t[0], reverse=True):
+        before = result[:offset].rstrip()
+        after = result[offset:]
+        if after.strip():
+            result = f"{before}\n\n{block}\n\n{after.lstrip(chr(10))}"
+        else:
+            result = f"{before}\n\n{block}"
+
+    if appended:
+        result = result.rstrip() + "\n\n" + "\n\n".join(appended)
+    return result
 
 
 def parse_issue_url(url: str) -> dict | None:

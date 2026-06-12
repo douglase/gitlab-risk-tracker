@@ -160,6 +160,89 @@ def test_bare_body_matches_rd_other_sections_still_proposed() -> None:
     assert out.startswith(existing)
 
 
+# ---------------------------------------------------------------------------
+# Addendum placement (proposal goes right after its matching section)
+# ---------------------------------------------------------------------------
+
+def test_proposal_inserted_after_matching_section_not_at_end() -> None:
+    """A differing section's proposal block is inserted directly after the
+    matching existing section — before the next heading — rather than
+    dumped at the bottom of the description separated from its section."""
+    existing = (
+        "# Risk Description\n\nExisting risk.\n\n"
+        "# Mitigation Plan\n\nOld plan.\n\n"
+        "# Notes\n\nOld notes.\n\n"
+        "# History\n\nPrior history that must stay last.\n"
+    )
+    out = imp.merge_sections(
+        existing,
+        {
+            "risk_description": "Existing risk.",          # match → no proposal
+            "notes": "New notes from sheet.",              # differ → after Notes
+            "mitigation_plan": "New plan from sheet.",     # differ → after Mitigation
+        },
+        today="2026-06-04",
+        source_id="ESC036",
+    )
+
+    # The Mitigation addendum sits between the Mitigation section and Notes.
+    mit_block = out.index("proposal:mitigation_plan:esc036")
+    notes_heading = out.index("# Notes")
+    mit_heading = out.index("# Mitigation Plan")
+    assert mit_heading < mit_block < notes_heading, (
+        "mitigation addendum should sit after the Mitigation section and "
+        "before the Notes heading"
+    )
+
+    # The Notes addendum sits between the Notes section and History.
+    notes_block = out.index("proposal:notes:esc036")
+    history_heading = out.index("# History")
+    assert notes_heading < notes_block < history_heading, (
+        "notes addendum should sit after the Notes section and before the "
+        "History heading"
+    )
+
+    # History (a non-canonical trailing section) stays last and untouched.
+    assert history_heading > notes_block
+    assert "Prior history that must stay last." in out
+    # No risk_description proposal (it matched).
+    assert "proposal:risk_description" not in out
+    # Re-running with the same data is byte-for-byte stable.
+    again = imp.merge_sections(
+        out,
+        {
+            "risk_description": "Existing risk.",
+            "notes": "New notes from sheet.",
+            "mitigation_plan": "New plan from sheet.",
+        },
+        today="2026-06-04",
+        source_id="ESC036",
+    )
+    assert again == out, "inline-insertion result is not idempotent"
+
+
+def test_differing_risk_description_addendum_follows_existing_rd() -> None:
+    """The user's report: a differing Risk Description must NOT produce a
+    second Risk Description at the bottom separated by other sections —
+    its addendum belongs right after the existing Risk Description."""
+    existing = (
+        "# Risk Description\n\nExisting statement.\n\n"
+        "# Mitigation Plan\n\nA plan.\n\n"
+        "# Notes\n\nSome notes.\n"
+    )
+    out = imp.merge_sections(
+        existing, {"risk_description": "Updated statement from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    rd_heading = out.index("# Risk Description")
+    rd_block = out.index("proposal:risk_description:esc036")
+    mit_heading = out.index("# Mitigation Plan")
+    assert rd_heading < rd_block < mit_heading, (
+        "Risk Description addendum should sit between the existing Risk "
+        "Description and the Mitigation Plan heading"
+    )
+
+
 def test_missing_section_appends_proposal_not_canonical_heading() -> None:
     """Issue has no matching canonical heading → proposal block, NOT a
     bare canonical section. The user must still review before adopting."""
