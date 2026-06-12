@@ -561,6 +561,11 @@ def main() -> int:
                     help="Worksheet name (default: active sheet)")
     ap.add_argument("--dry-run", action="store_true",
                     help="Print a unified diff per changed issue; do not write")
+    ap.add_argument("--print-markdown", action="store_true",
+                    help="Print the full proposed issue description as clean "
+                         "markdown (pasteable into GitLab's preview) instead "
+                         "of a unified diff. Implies --dry-run (never writes). "
+                         "Pair with --issue to isolate one issue.")
     ap.add_argument("--limit", type=int, default=0,
                     help="Process at most N matched rows (0 = no limit)")
     ap.add_argument("--issue", type=int,
@@ -569,6 +574,11 @@ def main() -> int:
                     default=Path(f"backup-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.jsonl"),
                     help="Append original issue descriptions to this file before writing")
     args = ap.parse_args()
+    # --print-markdown is a read-only preview mode: force dry-run so no
+    # write path can ever fire, regardless of how the output branch below
+    # is structured.
+    if args.print_markdown:
+        args.dry_run = True
 
     token = args.token or os.environ.get(args.token_env)
     if not token:
@@ -729,7 +739,23 @@ def main() -> int:
             )
             print(f"\n--- {row_tag} → {display_project}#{iid} ---  "
                   f"({issue.get('web_url') or link})")
-            if args.dry_run:
+            if args.print_markdown:
+                # Emit the full proposed description verbatim so it can be
+                # pasted into the issue and previewed. The delimiter is an
+                # HTML comment, which is invisible in GitLab's rendered
+                # markdown — so even copying the whole block (separator
+                # included) previews cleanly. Pair with --issue to get a
+                # single block on stdout.
+                sys.stdout.write(
+                    f"<!-- ===== {row_tag} → {display_project}#{iid} "
+                    f"(paste below into the issue, then Preview) ===== -->\n"
+                )
+                sys.stdout.write(
+                    new_desc if new_desc.endswith("\n") else new_desc + "\n"
+                )
+                sys.stdout.write("\n")
+                stats["would_update"] += 1
+            elif args.dry_run:
                 diff = "".join(difflib.unified_diff(
                     current.splitlines(keepends=True),
                     new_desc.splitlines(keepends=True),

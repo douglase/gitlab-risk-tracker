@@ -122,6 +122,10 @@ dashboard's read-only ``GITLAB_TOKEN``.
      - Worksheet to read (default: the active sheet).
    * - ``--dry-run``
      - Print diffs; make no changes.
+   * - ``--print-markdown``
+     - Instead of a diff, print the full proposed issue description as
+       clean, pasteable markdown; never writes (implies ``--dry-run``).
+       See below.
    * - ``--limit N``
      - Process at most N matched rows.
    * - ``--issue IID``
@@ -130,6 +134,30 @@ dashboard's read-only ``GITLAB_TOKEN``.
      - Where to append the original descriptions before any write
        (default: a timestamped ``backup-*.jsonl`` in the working
        directory). Always written, even on a dry run's matched rows.
+
+Previewing in GitLab
+--------------------
+
+``--dry-run`` shows a unified diff, which is great for review but not
+something you can paste anywhere. When you'd rather *see* how the
+result will render, use ``--print-markdown`` (which implies
+``--dry-run`` — it never writes):
+
+.. code-block:: bash
+
+   python scripts/import_smartsheet.py \
+       --xlsx "Risk Register.xlsx" --issue 131 --print-markdown
+
+This prints the **complete proposed description** for each changed
+issue — exactly what would be written — so you can copy it into the
+issue's description box in GitLab and click *Preview* to see the
+rendered result before committing to a real run.
+
+Each issue's block is introduced by an HTML-comment delimiter such as
+``<!-- ===== LPY016 → grp/proj#131 ... ===== -->``. HTML comments are
+invisible in GitLab's rendered markdown, so even if you copy the whole
+block (delimiter included) the preview stays clean. Pair the flag with
+``--issue <iid>`` to get a single issue's markdown on its own.
 
 How it handles edge cases
 -------------------------

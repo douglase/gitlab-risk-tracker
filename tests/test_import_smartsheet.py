@@ -700,6 +700,86 @@ def test_main_tags_failures_with_unique_risk_id(tmp_path=None, capsys=None) -> N
     assert rc != 0, "main() should return non-zero when errors > 0"
 
 
+def test_main_print_markdown_emits_clean_pasteable_description() -> None:
+    """--print-markdown prints the full proposed description verbatim
+    (pasteable into GitLab), never PUTs, and delimits issues with an
+    HTML comment (invisible in GitLab's rendered preview)."""
+    import io
+    import sys as _sys
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+    import requests
+
+    rows = [
+        {"GitLab Link": "https://gl.example.com/p/-/issues/2",
+         "Unique Risk ID": "LPY016",
+         "Risk Description": "Bare risk statement.",
+         "Action Plan/ Notes": "Verify cart load every shift."},
+    ]
+
+    class _FakeResp:
+        def __init__(self, status, body):
+            self.status_code = status
+            self._body = body
+        def json(self): return self._body
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                err = requests.HTTPError(f"{self.status_code} error")
+                err.response = self
+                raise err
+
+    def fake_get(url, timeout=30):
+        if "/issues/2" in url and "projects" in url:
+            return _FakeResp(200, {
+                "iid": 2, "project_id": 100,
+                "web_url": "https://gl.example.com/p/-/issues/2",
+                "description": "Bare risk statement.",
+            })
+        return _FakeResp(404, {})
+
+    def fake_put(url, json=None, timeout=30):
+        raise AssertionError("--print-markdown must never PUT")
+
+    with tempfile.TemporaryDirectory() as d:
+        xlsx_path = Path(d) / "Risk Register.xlsx"
+        xlsx_path.write_bytes(b"")
+        backup_path = Path(d) / "backup.jsonl"
+        # Note: deliberately NOT passing --dry-run; --print-markdown must
+        # imply it on its own.
+        argv = ["import_smartsheet.py", "--xlsx", str(xlsx_path),
+                "--token", "fake-token", "--print-markdown",
+                "--backup", str(backup_path)]
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        with patch.object(imp, "read_xlsx", return_value=rows), \
+             patch.object(imp, "requests") as mock_requests, \
+             patch.object(_sys, "argv", argv), \
+             patch.object(_sys, "stdout", buf_out), \
+             patch.object(_sys, "stderr", buf_err):
+            sess = mock_requests.Session.return_value
+            sess.headers = {}
+            sess.get.side_effect = fake_get
+            sess.put.side_effect = fake_put
+            mock_requests.HTTPError = requests.HTTPError
+            rc = imp.main()
+            put_calls = sess.put.call_count
+
+    out = buf_out.getvalue()
+
+    # Never wrote.
+    assert put_calls == 0, "--print-markdown issued a PUT"
+    assert rc == 0
+    # The clean proposal markdown is present, not a unified diff.
+    assert "### Notes" in out
+    assert "Verify cart load every shift." in out
+    assert "--- current" not in out and "+++ new" not in out, \
+        "print-markdown should not emit a unified diff"
+    assert "@@" not in out, "print-markdown should not emit diff hunk headers"
+    # Issue delimiter is an HTML comment (invisible in GitLab preview).
+    assert "<!-- ===== LPY016 →" in out, \
+        "missing HTML-comment issue delimiter"
+
+
 # ---------------------------------------------------------------------------
 # Runner (so `python tests/test_import_smartsheet.py` works alongside pytest)
 # ---------------------------------------------------------------------------
