@@ -152,10 +152,15 @@ def test_bare_body_differs_still_proposes() -> None:
     assert "spreadsheet-import:proposal:risk_description" in out
     assert "New canonical text from the spreadsheet." in out
     # The diff block should be present (since "existing_body" is now the
-    # bare prose, not "").
+    # bare prose, not ""), collapsed inside a <details> toggle so it
+    # doesn't visually duplicate the new content above.
     assert "```diff" in out, \
         "expected a diff block comparing bare body to spreadsheet text"
     assert "-Old free-form text." in out
+    assert "<details>" in out and "</details>" in out, \
+        "diff should be collapsed inside a <details> element"
+    # The diff lives inside the <details>, not before it.
+    assert out.index("<details>") < out.index("```diff") < out.index("</details>")
 
 
 def test_bare_body_only_blocks_risk_description_fallback() -> None:

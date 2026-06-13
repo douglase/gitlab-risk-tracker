@@ -305,8 +305,10 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         at all, so it can never be mistaken for the authoritative section.
       * The new content.
       * If the issue had a prior version of this section, a unified diff
-        in a ```diff code block (always visible — never inside <details>).
-        Sections with no prior content omit the diff entirely.
+        in a ```diff code block, collapsed inside a <details> toggle so
+        it doesn't visually duplicate the clean new content above and the
+        old content in the section it sits below. Sections with no prior
+        content omit the diff entirely.
       * Italic attribution footer: ``*(imported from <source>, on <date>)*``
         — when a Unique Risk ID is available it's woven in:
         ``*(imported from <source>, Unique Risk ID: <id>, on <date>)*``.
@@ -344,11 +346,22 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         diff_text = "\n".join(diff_lines) if diff_lines else (
             "(no textual diff — whitespace or formatting only)"
         )
+        # Collapse the diff into a <details> toggle. The clean new content
+        # above is the primary view; the line-level diff (which otherwise
+        # re-prints the old text from the section above and the new text
+        # from just above) stays available but out of the way. The blank
+        # lines around the fenced block are required for GitLab to render
+        # markdown inside the <details> element.
         parts.extend([
+            "",
+            "<details>",
+            "<summary>Show line-by-line diff vs. the section above</summary>",
             "",
             "```diff",
             diff_text,
             "```",
+            "",
+            "</details>",
         ])
     attribution_bits = [f"imported from {source_label}"]
     if unique_id:

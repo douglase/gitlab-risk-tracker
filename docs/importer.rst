@@ -91,6 +91,13 @@ so a reader can tell the two apart at a glance::
 For a section the issue doesn't have yet, a plain ``### <name>`` heading
 is used (there's nothing to disambiguate from).
 
+When the section already existed, a line-by-line diff against the
+previous text is included but **collapsed inside a** ``<details>``
+**toggle**, so it doesn't visually duplicate the clean new content
+above and the old content in the section just above it. Expand "Show
+line-by-line diff vs. the section above" when you want the granular
+view.
+
 Usage
 -----
 
