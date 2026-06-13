@@ -79,24 +79,52 @@ def test_differ_appends_proposal_existing_preserved() -> None:
 
 def test_imported_section_marked_when_existing_section_present() -> None:
     """When the issue already has a section with the same name, the
-    imported proposal heading is preceded by a horizontal rule and
-    tagged '(imported from spreadsheet)', so a reader can tell the two
-    apart. The decorated heading must NOT match a canonical key (so the
-    dashboard keeps the issue's own section authoritative)."""
+    imported copy is preceded by a horizontal rule and a PLAIN-TEXT bold
+    label (NOT a heading), so it stays inside the existing section and
+    flows through to the dashboard rather than being stranded under a
+    non-canonical subheading."""
     existing = "## Mitigation Plan\n\nOld plan body.\n"
     out = imp.merge_sections(
         existing, {"mitigation_plan": "New plan from sheet."},
         today="2026-06-04", source_id="ESC036",
     )
-    # Horizontal rule + tagged imported heading.
-    assert "\n---\n" in out, "missing horizontal rule before imported section"
-    assert "### Mitigation Plan _(imported from spreadsheet)_" in out, \
-        "imported heading not tagged"
+    # Horizontal rule + plain-text bold label.
+    assert "\n---\n" in out, "missing horizontal rule before imported content"
+    assert "**Mitigation Plan _(imported from spreadsheet)_**" in out, \
+        "imported content not labelled"
+    # The label must NOT be a markdown heading — a heading would end the
+    # existing section and hide the import from the dashboard.
+    assert "### Mitigation Plan" not in out, \
+        "imported content should be plain text, not a heading"
     # The issue's own section is untouched and still a plain canonical heading.
     assert "## Mitigation Plan\n\nOld plan body." in out
-    # The decorated heading text does not resolve to a canonical key, so
-    # the dashboard parser won't treat the import as the real section.
-    assert imp.canonical_key("Mitigation Plan _(imported from spreadsheet)_") is None
+
+
+def test_imported_content_flows_to_dashboard_section() -> None:
+    """End-to-end: after importing into an issue that already has the
+    section, build.parse_sections() (the dashboard parser) surfaces the
+    imported content as part of that section — the bug the plain-text
+    label fixes. Skipped if build.py's runtime deps aren't installed
+    (this suite otherwise needs none)."""
+    sys.path.insert(0, str(ROOT))
+    try:
+        import build  # noqa: E402  (needs markdown/nh3/jinja2/requests)
+    except ImportError as e:
+        print(f"  (skipping dashboard-integration check: {e})")
+        return
+
+    existing = "# Mitigation Plan\n\nOld plan.\n"
+    merged = imp.merge_sections(
+        existing, {"mitigation_plan": "New plan from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    parsed = build.parse_sections(merged)
+    assert "mitigation_plan" in parsed
+    rendered = build.plain_text(build.render_markdown(parsed["mitigation_plan"]))
+    assert "New plan from sheet." in rendered, (
+        "imported content did not flow through to the dashboard section:\n"
+        f"{rendered!r}"
+    )
 
 
 def test_new_section_uses_plain_heading_no_rule() -> None:

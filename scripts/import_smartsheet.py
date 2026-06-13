@@ -287,22 +287,23 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     """Render a markdown block proposing a new section value.
 
     Layout:
-      * Heading for the proposed section. When the issue ALREADY has a
-        canonical section with this name, the heading is preceded by a
-        horizontal rule and tagged ``(imported from spreadsheet)`` so a
-        reader can immediately tell the imported copy apart from the
-        issue's own section above — e.g.::
+      * Label for the proposed section. When the issue ALREADY has a
+        section with this name, the imported copy is introduced by a
+        horizontal rule and a PLAIN-TEXT bold label (not a heading) so it
+        stays *inside* the existing section — e.g.::
 
             ---
 
-            ### Mitigation Plan _(imported from spreadsheet)_
+            **Mitigation Plan _(imported from spreadsheet)_**
 
-        When no such section exists yet, a plain ``### <name>`` heading is
-        used (there's nothing to disambiguate from). Either way the
-        heading is H3 so the issue's own H1/H2 section, if present, stays
-        the first match for the dashboard's section parser; the decorated
-        "imported" heading additionally no longer matches a canonical key
-        at all, so it can never be mistaken for the authoritative section.
+        A heading here would end the existing canonical section and strand
+        the imported text where the dashboard's section parser can't see
+        it. Keeping it plain text lets the imported content flow through to
+        the dashboard alongside the original.
+
+        When no such section exists yet, a real ``### <name>`` heading is
+        used instead — the proposal IS the section, so it needs a canonical
+        heading or its content would be filed under the preceding section.
       * The new content.
       * If the issue had a prior version of this section, a unified diff
         in a ```diff code block, collapsed inside a <details> toggle so
@@ -319,17 +320,25 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     sid = _slugify_source_id(source_id)
     parts: list[str] = [f"<!-- spreadsheet-import:proposal:{key}:{sid} -->"]
     if existing_body:
-        # An existing section with this name sits above; set the imported
-        # copy apart with a rule + an explicit "imported" tag. The blank
-        # line before ``---`` keeps it a thematic break (an <hr>), not a
-        # setext underline for the HTML-comment marker.
+        # A section with this name already exists above. Mark the imported
+        # copy with a rule + a PLAIN-TEXT (bold) label rather than a
+        # heading. A markdown heading here would (a) end the existing
+        # canonical section, stranding the imported text in a region the
+        # dashboard's section parser never renders, and (b) not match a
+        # canonical key anyway. Plain text keeps the imported content
+        # *inside* the existing section, so it flows through to the
+        # dashboard. The blank line before ``---`` keeps it a thematic
+        # break (an <hr>), not a setext underline for the marker above.
         parts.extend([
             "",
             "---",
             "",
-            f"### {canonical_h} _(imported from spreadsheet)_",
+            f"**{canonical_h} _(imported from spreadsheet)_**",
         ])
     else:
+        # No existing section: the proposal IS the section, so it needs a
+        # real canonical heading or the dashboard would file its content
+        # under the preceding section instead.
         parts.append(f"### {canonical_h}")
     parts.extend([
         "",

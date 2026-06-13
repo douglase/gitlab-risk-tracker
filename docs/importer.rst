@@ -81,15 +81,24 @@ Each appended proposal block carries an italic attribution line, e.g.
 Modification Date: 2025-07-22, on 2026-06-12)*``.
 
 When the issue **already has** a section with the same name, the
-imported copy is set apart with a horizontal rule and a tagged heading
-so a reader can tell the two apart at a glance::
+imported copy is set apart with a horizontal rule and a plain-text
+bold label (**not** a heading) so it stays *inside* the existing
+section::
 
    ---
 
-   ### Mitigation Plan _(imported from spreadsheet)_
+   **Mitigation Plan _(imported from spreadsheet)_**
 
-For a section the issue doesn't have yet, a plain ``### <name>`` heading
-is used (there's nothing to disambiguate from).
+This matters for the dashboard: a markdown heading there would end the
+existing canonical section and strand the imported text where the
+dashboard's section parser can't see it. Keeping the label as plain
+text lets the imported content flow through to the dashboard alongside
+the original.
+
+For a section the issue doesn't have yet, a real ``### <name>`` heading
+is used instead — the proposal *is* the section, so it needs a
+canonical heading or its content would be filed under the preceding
+section.
 
 When the section already existed, a line-by-line diff against the
 previous text is included but **collapsed inside a** ``<details>``
