@@ -167,9 +167,10 @@ def test_bare_body_matches_spreadsheet_risk_description() -> None:
 
 
 def test_bare_body_differs_still_proposes() -> None:
-    """Bare body that DOESN'T match the spreadsheet still gets a
-    proposal block — the bare prose is the existing content, and the
-    diff in the proposal shows what changed."""
+    """Bare body that DOESN'T match the spreadsheet still gets a proposal
+    block with the new content. No inline diff is emitted — the import is
+    absorbed into the (bare) section and the diff would only clutter the
+    dashboard."""
     existing = "Old free-form text."
     out = imp.merge_sections(
         existing,
@@ -179,16 +180,9 @@ def test_bare_body_differs_still_proposes() -> None:
     )
     assert "spreadsheet-import:proposal:risk_description" in out
     assert "New canonical text from the spreadsheet." in out
-    # The diff block should be present (since "existing_body" is now the
-    # bare prose, not ""), collapsed inside a <details> toggle so it
-    # doesn't visually duplicate the new content above.
-    assert "```diff" in out, \
-        "expected a diff block comparing bare body to spreadsheet text"
-    assert "-Old free-form text." in out
-    assert "<details>" in out and "</details>" in out, \
-        "diff should be collapsed inside a <details> element"
-    # The diff lives inside the <details>, not before it.
-    assert out.index("<details>") < out.index("```diff") < out.index("</details>")
+    # No diff block, no <details> scaffolding.
+    assert "```diff" not in out, "diff block should no longer be emitted"
+    assert "<details>" not in out, "no <details> scaffolding expected"
 
 
 def test_bare_body_only_blocks_risk_description_fallback() -> None:

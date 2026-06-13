@@ -100,12 +100,13 @@ is used instead — the proposal *is* the section, so it needs a
 canonical heading or its content would be filed under the preceding
 section.
 
-When the section already existed, a line-by-line diff against the
-previous text is included but **collapsed inside a** ``<details>``
-**toggle**, so it doesn't visually duplicate the clean new content
-above and the old content in the section just above it. Expand "Show
-line-by-line diff vs. the section above" when you want the granular
-view.
+No inline diff is embedded in the proposal. Because an imported update
+to an existing section flows through to the dashboard, an embedded diff
+would flatten into clutter there (the dashboard sanitizer strips
+``<details>``), and the old text already sits directly above the new
+text in the same section. To review changes line-by-line before
+committing, use ``--dry-run`` (which prints a unified diff to your
+terminal).
 
 Usage
 -----

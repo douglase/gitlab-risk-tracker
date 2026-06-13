@@ -304,12 +304,9 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         When no such section exists yet, a real ``### <name>`` heading is
         used instead — the proposal IS the section, so it needs a canonical
         heading or its content would be filed under the preceding section.
-      * The new content.
-      * If the issue had a prior version of this section, a unified diff
-        in a ```diff code block, collapsed inside a <details> toggle so
-        it doesn't visually duplicate the clean new content above and the
-        old content in the section it sits below. Sections with no prior
-        content omit the diff entirely.
+      * The new content. (No inline diff: an absorbed import flows to the
+        dashboard, where a <details>-wrapped diff would flatten into
+        clutter, and the old text already sits directly above the new.)
       * Italic attribution footer: ``*(imported from <source>, on <date>)*``
         — when a Unique Risk ID is available it's woven in:
         ``*(imported from <source>, Unique Risk ID: <id>, on <date>)*``.
@@ -344,34 +341,12 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
         "",
         new_body.rstrip(),
     ])
-    if existing_body:
-        diff_lines = list(difflib.unified_diff(
-            existing_body.splitlines(),
-            new_body.splitlines(),
-            fromfile="current",
-            tofile="spreadsheet",
-            lineterm="",
-        ))
-        diff_text = "\n".join(diff_lines) if diff_lines else (
-            "(no textual diff — whitespace or formatting only)"
-        )
-        # Collapse the diff into a <details> toggle. The clean new content
-        # above is the primary view; the line-level diff (which otherwise
-        # re-prints the old text from the section above and the new text
-        # from just above) stays available but out of the way. The blank
-        # lines around the fenced block are required for GitLab to render
-        # markdown inside the <details> element.
-        parts.extend([
-            "",
-            "<details>",
-            "<summary>Show line-by-line diff vs. the section above</summary>",
-            "",
-            "```diff",
-            diff_text,
-            "```",
-            "",
-            "</details>",
-        ])
+    # No inline diff block. When a section already existed the imported
+    # copy is absorbed into that section, so it flows through to the
+    # dashboard — and the dashboard's sanitizer strips <details>, which
+    # would flatten an embedded diff into visible clutter there. The old
+    # text sits directly above the new text in the same section, so a
+    # reader can compare the two without a unified diff.
     attribution_bits = [f"imported from {source_label}"]
     if unique_id:
         attribution_bits.append(f"Unique Risk ID: {unique_id}")
