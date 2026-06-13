@@ -80,6 +80,17 @@ Each appended proposal block carries an italic attribution line, e.g.
 ``*(imported from Risk Register.xlsx, Unique Risk ID: LPY016,
 Modification Date: 2025-07-22, on 2026-06-12)*``.
 
+When the issue **already has** a section with the same name, the
+imported copy is set apart with a horizontal rule and a tagged heading
+so a reader can tell the two apart at a glance::
+
+   ---
+
+   ### Mitigation Plan _(imported from spreadsheet)_
+
+For a section the issue doesn't have yet, a plain ``### <name>`` heading
+is used (there's nothing to disambiguate from).
+
 Usage
 -----
 

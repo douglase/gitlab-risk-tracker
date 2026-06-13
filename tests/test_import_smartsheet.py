@@ -77,6 +77,47 @@ def test_differ_appends_proposal_existing_preserved() -> None:
         "proposal not appended after existing section"
 
 
+def test_imported_section_marked_when_existing_section_present() -> None:
+    """When the issue already has a section with the same name, the
+    imported proposal heading is preceded by a horizontal rule and
+    tagged '(imported from spreadsheet)', so a reader can tell the two
+    apart. The decorated heading must NOT match a canonical key (so the
+    dashboard keeps the issue's own section authoritative)."""
+    existing = "## Mitigation Plan\n\nOld plan body.\n"
+    out = imp.merge_sections(
+        existing, {"mitigation_plan": "New plan from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    # Horizontal rule + tagged imported heading.
+    assert "\n---\n" in out, "missing horizontal rule before imported section"
+    assert "### Mitigation Plan _(imported from spreadsheet)_" in out, \
+        "imported heading not tagged"
+    # The issue's own section is untouched and still a plain canonical heading.
+    assert "## Mitigation Plan\n\nOld plan body." in out
+    # The decorated heading text does not resolve to a canonical key, so
+    # the dashboard parser won't treat the import as the real section.
+    assert imp.canonical_key("Mitigation Plan _(imported from spreadsheet)_") is None
+
+
+def test_new_section_uses_plain_heading_no_rule() -> None:
+    """When the issue has NO section with this name, the proposal uses a
+    plain '### <name>' heading with no rule — there's nothing to
+    disambiguate it from."""
+    existing = "## Risk Description\n\nA risk.\n"
+    out = imp.merge_sections(
+        existing, {"notes": "Fresh notes from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    assert "### Notes" in out
+    assert "_(imported from spreadsheet)_" not in out, \
+        "brand-new section should not carry the imported tag"
+    # No diff block either (no prior content for this section).
+    assert "```diff" not in out
+    # The only '---' that could appear would be from the rule; assert the
+    # rule is absent for a brand-new section.
+    assert "\n---\n" not in out, "unexpected horizontal rule for a new section"
+
+
 def test_bare_body_matches_spreadsheet_risk_description() -> None:
     """A description with no canonical heading but whose entire body
     matches the spreadsheet's Risk Description should NOT trigger a

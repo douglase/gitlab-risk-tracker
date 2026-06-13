@@ -287,10 +287,22 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     """Render a markdown block proposing a new section value.
 
     Layout:
-      * H3 heading with just the canonical section name (e.g.
-        ``### Risk Description``). H3, not H2, so the existing canonical
-        H2 section above remains the first match for the dashboard's
-        section parser when both are present.
+      * Heading for the proposed section. When the issue ALREADY has a
+        canonical section with this name, the heading is preceded by a
+        horizontal rule and tagged ``(imported from spreadsheet)`` so a
+        reader can immediately tell the imported copy apart from the
+        issue's own section above — e.g.::
+
+            ---
+
+            ### Mitigation Plan _(imported from spreadsheet)_
+
+        When no such section exists yet, a plain ``### <name>`` heading is
+        used (there's nothing to disambiguate from). Either way the
+        heading is H3 so the issue's own H1/H2 section, if present, stays
+        the first match for the dashboard's section parser; the decorated
+        "imported" heading additionally no longer matches a canonical key
+        at all, so it can never be mistaken for the authoritative section.
       * The new content.
       * If the issue had a prior version of this section, a unified diff
         in a ```diff code block (always visible — never inside <details>).
@@ -303,12 +315,24 @@ def _build_proposal_block(key: str, canonical_h: str, new_body: str,
     spreadsheet rows targeting the same issue each get their own block.
     """
     sid = _slugify_source_id(source_id)
-    parts: list[str] = [
-        f"<!-- spreadsheet-import:proposal:{key}:{sid} -->",
-        f"### {canonical_h}",
+    parts: list[str] = [f"<!-- spreadsheet-import:proposal:{key}:{sid} -->"]
+    if existing_body:
+        # An existing section with this name sits above; set the imported
+        # copy apart with a rule + an explicit "imported" tag. The blank
+        # line before ``---`` keeps it a thematic break (an <hr>), not a
+        # setext underline for the HTML-comment marker.
+        parts.extend([
+            "",
+            "---",
+            "",
+            f"### {canonical_h} _(imported from spreadsheet)_",
+        ])
+    else:
+        parts.append(f"### {canonical_h}")
+    parts.extend([
         "",
         new_body.rstrip(),
-    ]
+    ])
     if existing_body:
         diff_lines = list(difflib.unified_diff(
             existing_body.splitlines(),
