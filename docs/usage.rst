@@ -96,9 +96,11 @@ Unscored risks
 Issues that match the risk-label filter but have no valid Consequence ×
 Likelihood score (1–5 on each axis) can't be placed on the matrix or
 sorted in the main table. They are listed separately in an **Unscored
-risks** table beneath the scored table so the team notices them and
-assigns values in GitLab. This section only appears when at least one
-unscored risk exists.
+risks** section beneath the scored table so the team notices them and
+assigns values in GitLab. The section is collapsed by default — click
+the heading to expand the list — and only appears when at least one
+unscored risk exists. The row count next to the heading stays visible
+either way and reflects the current filters.
 
 CSV export
 ----------
