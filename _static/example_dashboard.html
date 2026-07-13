@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Risk Dashboard — stp</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --muted: #666;
+    --border: #ddd;
+    --low: #e8f5e9;
+    --medium: #fff9c4;
+    --high: #ffe0b2;
+    --critical: #ffcdd2;
+    --unscored: #eceff1;
+  }
+  body { font: 14px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 1.5rem; }
+  h1 { margin: 0 0 .25rem 0; font-size: 1.4rem; }
+  .meta { color: var(--muted); margin-bottom: 1rem; }
+  .filters { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: .75rem; background: white; border: 1px solid var(--border); border-radius: 6px; }
+  .filters label { display: flex; flex-direction: column; gap: .25rem; font-size: 12px; color: var(--muted); }
+  .filters select, .filters input { padding: .25rem .5rem; font: inherit; min-width: 140px; }
+  .filters select[multiple] { min-width: 160px; }
+  .filters .hint { font-size: 10px; color: #aaa; font-weight: normal; }
+  .filters button { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; align-self: end; }
+  .filters button:hover { background: #f5f5f5; }
+  table.matrix { border-collapse: collapse; margin-bottom: 1.5rem; }
+  table.matrix th, table.matrix td { border: 1px solid var(--border); padding: .5rem; vertical-align: top; min-width: 110px; height: 90px; }
+  table.matrix th { background: white; font-weight: 600; text-align: center; }
+  table.matrix td { cursor: pointer; position: relative; }
+  table.matrix td.low { background: var(--low); }
+  table.matrix td.medium { background: var(--medium); }
+  table.matrix td.high { background: var(--high); }
+  table.matrix td.critical { background: var(--critical); }
+  table.matrix td.unscored { background: var(--unscored); }
+  td .count { font-weight: 700; font-size: 1.2rem; }
+  td ul { margin: .25rem 0 0 0; padding: 0; list-style: none; font-size: 11px; }
+  td ul li a { color: #1565c0; text-decoration: none; }
+  td ul li.closed a { color: var(--muted); text-decoration: line-through; }
+  td.selected { outline: 3px solid #1565c0; outline-offset: -3px; }
+  .axis-label { font-weight: 600; color: var(--muted); padding: .25rem; }
+  .legend { display: flex; gap: .35rem; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  .legend-chip { padding: .15rem .6rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font: inherit; font-size: 12px; }
+  .legend-chip.low { background: var(--low); }
+  .legend-chip.medium { background: var(--medium); }
+  .legend-chip.high { background: var(--high); }
+  .legend-chip.critical { background: var(--critical); }
+  .legend-chip:hover { filter: brightness(0.95); }
+  .legend-chip.active { border-color: #1565c0; border-width: 2px; padding: calc(.15rem - 1px) calc(.6rem - 1px); font-weight: 600; }
+  section { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+  section h2 { margin: 0 0 .75rem 0; font-size: 1rem; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .detail-table th, .detail-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
+  .detail-table th { color: var(--muted); font-weight: 600; }
+  .movement-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+  .movement-grid .card { padding: .5rem; border: 1px solid var(--border); border-radius: 4px; }
+  .movement-grid .card h3 { margin: 0 0 .35rem 0; font-size: .9rem; }
+  .movement-grid .card ul { margin: 0; padding-left: 1.1rem; font-size: 12px; }
+  .bar { display: flex; align-items: center; gap: .5rem; margin: .25rem 0; }
+  .bar .label { width: 110px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .bar a.label:hover { color: #1565c0; text-decoration: underline; }
+  table.risks td a.tag { text-decoration: none; cursor: pointer; }
+  table.risks td a.tag:hover { filter: brightness(0.95); text-decoration: underline; }
+  .bar .fill { background: #90caf9; height: 14px; border-radius: 2px; }
+  .bar .n { font-size: 12px; color: var(--muted); }
+  .trend { display: block; width: 100%; max-width: 1000px; height: auto; }
+  .trend .risk-line, .trend .risk-label { transition: opacity .12s, stroke-width .12s; }
+  .trend .risk-line, .trend .risk-label { cursor: pointer; }
+  .trend .risk-label:hover { text-decoration: underline; }
+  .hidden { display: none !important; }
+  .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
+  .unscored-details > summary { cursor: pointer; list-style: revert; }
+  .unscored-details > summary:hover h2 { color: #1565c0; }
+  .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
+  .table-toolbar details summary { cursor: pointer; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; list-style: none; }
+  .table-toolbar details summary::-webkit-details-marker { display: none; }
+  .col-toggles { padding: .5rem; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 4px 4px; display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap: .25rem .75rem; margin-top: -1px; max-width: 600px; }
+  .col-toggles label { display: flex; gap: .35rem; align-items: center; font-size: 12px; cursor: pointer; color: var(--fg); flex-direction: row; }
+  #export-csv { padding: .35rem .75rem; font: inherit; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; }
+  #export-csv:hover { background: #f5f5f5; }
+  section.regenerate { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; }
+  section.regenerate h2 { margin: 0 0 .5rem 0; font-size: 1rem; }
+  section.regenerate p { margin: .35rem 0; }
+  section.regenerate p.muted { color: var(--muted); font-size: 12px; }
+  .btn { display: inline-block; padding: .45rem .9rem; font: inherit; font-size: 13px; border-radius: 4px; border: 1px solid var(--border); background: white; color: var(--fg); text-decoration: none; margin-right: .35rem; cursor: pointer; }
+  .btn:hover { background: #f5f5f5; }
+  .btn-primary { background: #1565c0; color: white; border-color: #1565c0; }
+  .btn-primary:hover { background: #0d4ea0; color: white; }
+  footer.dashboard-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 1rem 0 .5rem 0; }
+  footer.dashboard-footer a { color: var(--muted); text-decoration: none; }
+  footer.dashboard-footer a:hover { color: #1565c0; text-decoration: underline; }
+  footer.dashboard-footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .table-wrap { overflow-x: auto; max-width: 100%; }
+  table.risks { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.risks th, table.risks td { border: 1px solid var(--border); padding: .35rem .5rem; text-align: left; vertical-align: top; }
+  table.risks th { background: #f5f5f5; cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  table.risks th .sort-indicator { color: var(--muted); margin-left: .25rem; font-size: 10px; }
+  table.risks th.sorted .sort-indicator { color: var(--fg); }
+  table.risks td.num { text-align: right; white-space: nowrap; }
+  table.risks td.markdown { max-width: 320px; }
+  table.risks .state-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  table.risks .state-pill.state-open { background: #e8f5e9; color: #1b5e20; }
+  table.risks .state-pill.state-closed { background: #eceff1; color: #455a64; text-decoration: line-through; }
+  table.risks .health-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  table.risks .health-pill.health-onTrack { background: #e8f5e9; color: #1b5e20; }
+  table.risks .health-pill.health-needsAttention { background: #fff8e1; color: #f57f17; }
+  table.risks .health-pill.health-atRisk { background: #ffebee; color: #b71c1c; }
+  table.risks td.markdown .preview { white-space: pre-wrap; word-wrap: break-word; }
+  table.risks td .see-more { color: #1565c0; cursor: pointer; font-size: 11px; margin-left: .25rem; }
+  table.risks td .edit-link { color: var(--muted); text-decoration: none; font-size: 12px; margin-left: .35rem; opacity: .55; }
+  table.risks td .edit-link:hover { opacity: 1; color: #1565c0; }
+  .modal-content h2 .edit-link { font-size: 14px; color: var(--muted); text-decoration: none; margin-left: .5rem; }
+  .modal-content h2 .edit-link:hover { color: #1565c0; }
+  table.risks td .tag { display: inline-block; padding: 1px 6px; background: #e3f2fd; color: #0d47a1; border-radius: 10px; font-size: 11px; margin: 1px 1px 1px 0; }
+  table.risks td .tag.subsystem { background: #f3e5f5; color: #4a148c; }
+  table.risks td .tag.other { background: #eceff1; color: #455a64; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+  .modal-content { background: white; max-width: 900px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 1.5rem 2rem; border-radius: 6px; position: relative; }
+  .modal-close { position: absolute; right: .75rem; top: .5rem; cursor: pointer; font-size: 1.75rem; line-height: 1; color: var(--muted); background: none; border: none; }
+  .modal-content h1, .modal-content h2, .modal-content h3 { margin: .75rem 0 .25rem 0; }
+  .modal-content p { margin: .5rem 0; }
+  .modal-content code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 90%; }
+  .modal-content pre { background: #f5f5f5; padding: .75rem; border-radius: 4px; overflow-x: auto; }
+  .modal-content table { border-collapse: collapse; margin: .5rem 0; }
+  .modal-content table th, .modal-content table td { border: 1px solid var(--border); padding: .25rem .5rem; }
+</style>
+</head>
+<body>
+
+<h1>Risk Dashboard — stp</h1>
+<div class="meta">Last updated: 2026-07-13 17:29 UTC</div>
+
+<div class="filters">
+  <label>Subsystem <span class="hint">(⌘/Ctrl-click for multi)</span>
+    <select id="f-subsystem" multiple size="5">
+<option value="optics">optics</option><option value="thermal">thermal</option><option value="software">software</option><option value="mechanical">mechanical</option><option value="electrical">electrical</option>    </select>
+  </label>
+  <label>Status
+    <select id="f-status">
+      <option value="open" selected>Open</option>
+      <option value="closed">Closed</option>
+      <option value="">All</option>
+    </select>
+  </label>
+  <label>Priority
+    <select id="f-priority">
+      <option value="">All</option>
+<option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option>    </select>
+  </label>
+  <label>Risk type
+    <select id="f-risktype">
+      <option value="">All</option>
+<option value="Technical">Technical</option><option value="Cost">Cost</option><option value="Schedule">Schedule</option>    </select>
+  </label>
+  <label>Product <span class="hint">(multi · matches ^TO\d, ^ESC, ^WCC)</span>
+    <select id="f-products" multiple size="5">
+<option value="ESC033">ESC033</option><option value="TO12- Planet X EDL">TO12- Planet X EDL</option><option value="TO6- WCC Pre-SRR">TO6- WCC Pre-SRR</option><option value="TO8- Software Dev">TO8- Software Dev</option><option value="WCC078">WCC078</option><option value="WCC100">WCC100</option>    </select>
+  </label>
+  <label>Labels <span class="hint">(multi · every label in use)</span>
+    <select id="f-labels" multiple size="5">
+<option value="ESC033">ESC033</option><option value="TO12- Planet X EDL">TO12- Planet X EDL</option><option value="TO6- WCC Pre-SRR">TO6- WCC Pre-SRR</option><option value="TO8- Software Dev">TO8- Software Dev</option><option value="WCC078">WCC078</option><option value="WCC100">WCC100</option><option value="electrical">electrical</option><option value="mechanical">mechanical</option><option value="optics">optics</option><option value="software">software</option><option value="thermal">thermal</option>    </select>
+  </label>
+  <button type="button" id="clear-filters">Clear filters</button>
+  <span class="legend" title="Click a tier to filter (multi-select)">
+    <button type="button" class="legend-chip low"      data-tier="low">low (1–4)</button>
+    <button type="button" class="legend-chip medium"   data-tier="medium">medium (5–9)</button>
+    <button type="button" class="legend-chip high"     data-tier="high">high (10–15)</button>
+    <button type="button" class="legend-chip critical" data-tier="critical">critical (16–25)</button>
+  </span>
+</div>
+
+<table class="matrix">
+  <tr>
+    <th></th>
+    <th colspan="5">Likelihood →</th>
+  </tr>
+  <tr>
+    <th rowspan="6" class="axis-label">Consequence ↑</th>
+    <th></th>
+<th>L = 1</th><th>L = 2</th><th>L = 3</th><th>L = 4</th><th>L = 5</th>  </tr>
+  <tr>
+    <th>C = 5</th>
+      <td class="medium" data-cell="5-1" onclick="selectCell('5-1')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="5-2" onclick="selectCell('5-2')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="5-3" onclick="selectCell('5-3')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="critical" data-cell="5-4" onclick="selectCell('5-4')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="critical" data-cell="5-5" onclick="selectCell('5-5')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 4</th>
+      <td class="low" data-cell="4-1" onclick="selectCell('4-1')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="4-2" onclick="selectCell('4-2')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="4-3" onclick="selectCell('4-3')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="critical" data-cell="4-4" onclick="selectCell('4-4')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="critical" data-cell="4-5" onclick="selectCell('4-5')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 3</th>
+      <td class="low" data-cell="3-1" onclick="selectCell('3-1')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="3-2" onclick="selectCell('3-2')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="3-3" onclick="selectCell('3-3')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="3-4" onclick="selectCell('3-4')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="3-5" onclick="selectCell('3-5')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 2</th>
+      <td class="low" data-cell="2-1" onclick="selectCell('2-1')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="low" data-cell="2-2" onclick="selectCell('2-2')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="2-3" onclick="selectCell('2-3')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="2-4" onclick="selectCell('2-4')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="high" data-cell="2-5" onclick="selectCell('2-5')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+  </tr>
+  <tr>
+    <th>C = 1</th>
+      <td class="low" data-cell="1-1" onclick="selectCell('1-1')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="low" data-cell="1-2" onclick="selectCell('1-2')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="low" data-cell="1-3" onclick="selectCell('1-3')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="low" data-cell="1-4" onclick="selectCell('1-4')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+      <td class="medium" data-cell="1-5" onclick="selectCell('1-5')">
+        <div class="count">0</div>
+        <ul></ul>
+      </td>
+  </tr>
+</table>
+
+<section id="detail-section" class="hidden">
+  <h2>Selected cell — <span id="detail-label"></span></h2>
+  <table class="detail-table">
+    <thead><tr><th>ID</th><th>Title</th></tr></thead>
+    <tbody id="detail-body"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Trend — issues by severity tier (last 90 days)</h2>
+  <svg class="trend" id="trend-chart" viewBox="0 0 800 200"></svg>
+</section>
+
+<section>
+  <h2>Per-risk score (C×L) — <span id="risk-trend-count">0</span> series, last 90 days</h2>
+  <svg class="trend" id="risk-trend-chart" viewBox="0 0 800 260"></svg>
+</section>
+
+<section>
+  <h2>Movement (last 30 days)</h2>
+  <div class="movement-grid">
+    <div class="card">
+      <h3>↑ Escalated (2)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/10" target="_blank">#10</a> → C4×L4</li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> → C4×L3</li></ul>
+    </div>
+    <div class="card">
+      <h3>↓ De-escalated (1)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">#5</a> → C3×L3</li></ul>
+    </div>
+    <div class="card">
+      <h3>✚ New (8)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/6" target="_blank">Ground software test bed availability</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/99" target="_blank">Retired vendor risk</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/3" target="_blank">Cryocooler procurement long lead</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/5" target="_blank">FPGA single-event upset susceptibility</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/7" target="_blank">Documentation backlog for closeout package</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/8" target="_blank">On-board storage margin below 20%</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/9" target="_blank">Vibration test fixture rework</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/11" target="_blank">Unscored placeholder pending review</a></li></ul>
+    </div>
+    <div class="card">
+      <h3>✔ Closed (2)</h3>
+      <ul><li><a href="https://gitlab.example.com/stp/sub/-/work_items/99" target="_blank">#99</a></li><li><a href="https://gitlab.example.com/stp/sub/-/work_items/10" target="_blank">#10</a></li></ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Subsystem breakdown (label occurrences)</h2>
+    <div class="bar">
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=optics" target="_blank" title="Search issues with this label">optics</a>
+      <div class="fill" style="width: 50.0px;"></div>
+      <span class="n">1</span>
+    </div>
+    <div class="bar">
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=thermal" target="_blank" title="Search issues with this label">thermal</a>
+      <div class="fill" style="width: 150.0px;"></div>
+      <span class="n">3</span>
+    </div>
+    <div class="bar">
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=software" target="_blank" title="Search issues with this label">software</a>
+      <div class="fill" style="width: 300.0px;"></div>
+      <span class="n">6</span>
+    </div>
+    <div class="bar">
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=mechanical" target="_blank" title="Search issues with this label">mechanical</a>
+      <div class="fill" style="width: 150.0px;"></div>
+      <span class="n">3</span>
+    </div>
+    <div class="bar">
+      <a class="label" href="https://gitlab.example.com/groups/stp/-/issues?label_name%5B%5D=electrical" target="_blank" title="Search issues with this label">electrical</a>
+      <div class="fill" style="width: 50.0px;"></div>
+      <span class="n">1</span>
+    </div>
+</section>
+
+<section class="risks-section">
+  <h2>Risks (<span class="row-count" id="row-count">0</span>)</h2>
+  <div class="table-toolbar">
+    <details>
+      <summary>Columns ▾</summary>
+      <div class="col-toggles" id="col-toggles"></div>
+    </details>
+    <button type="button" id="export-csv">Export CSV</button>
+  </div>
+  <div class="table-wrap">
+    <table class="risks" id="risks-table">
+      <thead><tr id="risks-thead"></tr></thead>
+      <tbody id="risks-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="risks-section">
+  <details class="unscored-details">
+    <summary>
+      <h2 style="display: inline; margin: 0;">Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
+    </summary>
+    <p class="muted" style="margin: .5rem 0 .75rem; font-size: 12px;">
+      Risks without both a Consequence and a Likelihood don't fit on the
+      matrix. Score them in GitLab to bring them in.
+    </p>
+    <div class="table-wrap">
+      <table class="risks" id="unscored-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Owner</th>
+            <th>Subsystems</th>
+            <th>Labels</th>
+            <th>Opened</th>
+          </tr>
+        </thead>
+        <tbody id="unscored-tbody"></tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<section class="regenerate">
+  <h2>Refresh this dashboard</h2>
+  <p>This page is built by a scheduled GitLab pipeline. To pull in changes
+  you have made since the last nightly run, open the schedules page and
+  click the ▶ play button next to the nightly schedule:</p>
+  <p>
+    <a class="btn btn-primary"
+       href="https://gitlab.example.com/stp/gitlab-risk-tracker/-/pipeline_schedules"
+       target="_blank" rel="noopener">▶ Open pipeline schedules</a>
+  </p>
+  <p class="muted">
+    A typical run takes 1–3 minutes; refresh this page once the pipeline finishes.
+  </p>
+</section>
+
+<footer class="dashboard-footer">
+  Built from
+    <code>2a14858bdad8</code>
+  ·
+  Documentation:
+  <a href="https://douglase.github.io/gitlab-risk-tracker/" target="_blank" rel="noopener">gitlab-risk-tracker docs</a>
+  ·
+  <a href="https://github.com/douglase/gitlab-risk-tracker" target="_blank" rel="noopener">source on GitHub</a>
+</footer>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-content">
+    <button class="modal-close" type="button" onclick="closeModal()">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+const cells = {"1-1": [], "1-2": [{"iid": "7", "title": "Documentation backlog for closeout package", "display_title": "Documentation backlog for closeout package", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "state": "open", "subsystems": ["software"], "priority": "Low", "risk_types": ["Schedule"], "products": [], "other_labels": [], "tier": "low"}], "1-3": [], "1-4": [], "1-5": [], "2-1": [], "2-2": [{"iid": "8", "title": "On-board storage margin below 20%", "display_title": "On-board storage margin below 20%", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "state": "open", "subsystems": ["software"], "priority": "Low", "risk_types": ["Technical"], "products": ["WCC078"], "other_labels": [], "tier": "low"}], "2-3": [], "2-4": [{"iid": "6", "title": "Ground software test bed availability", "display_title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "state": "open", "subsystems": ["software"], "priority": "Medium", "risk_types": ["Schedule"], "products": ["TO8- Software Dev"], "other_labels": [], "tier": "medium"}], "2-5": [], "3-1": [], "3-2": [{"iid": "9", "title": "Vibration test fixture rework", "display_title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "state": "open", "subsystems": ["mechanical"], "priority": "Medium", "risk_types": ["Cost"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "tier": "medium"}], "3-3": [{"iid": "5", "title": "FPGA single-event upset susceptibility", "display_title": "FPGA single-event upset susceptibility", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "state": "open", "subsystems": ["electrical", "software"], "priority": "Medium", "risk_types": ["Technical"], "products": ["TO8- Software Dev"], "other_labels": [], "tier": "medium"}], "3-4": [], "3-5": [], "4-1": [], "4-2": [], "4-3": [{"iid": "4", "title": "Spacecraft Pu power source thermal loading", "display_title": "Spacecraft Pu power source thermal loading", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "state": "open", "subsystems": ["thermal"], "priority": "High", "risk_types": ["Technical"], "products": ["TO12- Planet X EDL"], "other_labels": [], "tier": "high"}], "4-4": [{"iid": "2", "title": "Risk# 8 Staffing for legacy software", "display_title": "Staffing for legacy software", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "state": "open", "subsystems": ["software"], "priority": "High", "risk_types": ["Schedule", "Cost"], "products": ["TO8- Software Dev", "WCC078"], "other_labels": [], "tier": "critical"}, {"iid": "10", "title": "Optical contamination during integration", "display_title": "Optical contamination during integration", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "state": "open", "subsystems": ["optics"], "priority": "High", "risk_types": ["Technical"], "products": ["ESC033", "WCC100"], "other_labels": [], "tier": "critical"}], "4-5": [], "5-1": [], "5-2": [{"iid": "3", "title": "Cryocooler procurement long lead", "display_title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "state": "open", "subsystems": ["mechanical", "thermal"], "priority": "High", "risk_types": ["Cost", "Schedule"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "tier": "high"}], "5-3": [{"iid": "1", "title": "Risk# 1A Planetary contamination from aerocapture breakup", "display_title": "Planetary contamination from aerocapture breakup", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "state": "open", "subsystems": ["mechanical", "thermal"], "priority": "High", "risk_types": ["Technical"], "products": ["TO12- Planet X EDL", "WCC100"], "other_labels": [], "tier": "high"}], "5-4": [], "5-5": []};
+const trends = {"labels": ["2026-04-15", "2026-04-16", "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13"], "series": {"critical": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2], "high": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3], "low": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2], "medium": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 3]}};
+const riskTrends = {"labels": ["2026-04-15", "2026-04-16", "2026-04-17", "2026-04-18", "2026-04-19", "2026-04-20", "2026-04-21", "2026-04-22", "2026-04-23", "2026-04-24", "2026-04-25", "2026-04-26", "2026-04-27", "2026-04-28", "2026-04-29", "2026-04-30", "2026-05-01", "2026-05-02", "2026-05-03", "2026-05-04", "2026-05-05", "2026-05-06", "2026-05-07", "2026-05-08", "2026-05-09", "2026-05-10", "2026-05-11", "2026-05-12", "2026-05-13", "2026-05-14", "2026-05-15", "2026-05-16", "2026-05-17", "2026-05-18", "2026-05-19", "2026-05-20", "2026-05-21", "2026-05-22", "2026-05-23", "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-11", "2026-07-12", "2026-07-13"], "series": [{"current_score": 15, "display_title": "Planetary contamination from aerocapture breakup", "iid": "1", "other_labels": [], "priority": "High", "products": ["TO12- Planet X EDL", "WCC100"], "risk_types": ["Technical"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15], "state": "open", "subsystems": ["mechanical", "thermal"], "tier": "high", "title": "Risk# 1A Planetary contamination from aerocapture breakup", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1"}, {"current_score": 16, "display_title": "Staffing for legacy software", "iid": "2", "other_labels": [], "priority": "High", "products": ["TO8- Software Dev", "WCC078"], "risk_types": ["Schedule", "Cost"], "scores": [null, null, null, null, null, null, null, null, null, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16], "state": "open", "subsystems": ["software"], "tier": "critical", "title": "Risk# 8 Staffing for legacy software", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2"}, {"current_score": 10, "display_title": "Cryocooler procurement long lead", "iid": "3", "other_labels": [], "priority": "High", "products": ["TO6- WCC Pre-SRR"], "risk_types": ["Cost", "Schedule"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 10], "state": "open", "subsystems": ["mechanical", "thermal"], "tier": "high", "title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3"}, {"current_score": 12, "display_title": "Spacecraft Pu power source thermal loading", "iid": "4", "other_labels": [], "priority": "High", "products": ["TO12- Planet X EDL"], "risk_types": ["Technical"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 12, 12, 12, 12, 12, 12], "state": "open", "subsystems": ["thermal"], "tier": "high", "title": "Spacecraft Pu power source thermal loading", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4"}, {"current_score": 9, "display_title": "FPGA single-event upset susceptibility", "iid": "5", "other_labels": [], "priority": "Medium", "products": ["TO8- Software Dev"], "risk_types": ["Technical"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 9], "state": "open", "subsystems": ["electrical", "software"], "tier": "medium", "title": "FPGA single-event upset susceptibility", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5"}, {"current_score": 8, "display_title": "Ground software test bed availability", "iid": "6", "other_labels": [], "priority": "Medium", "products": ["TO8- Software Dev"], "risk_types": ["Schedule"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 8, 8, 8, 8], "state": "open", "subsystems": ["software"], "tier": "medium", "title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6"}, {"current_score": 2, "display_title": "Documentation backlog for closeout package", "iid": "7", "other_labels": [], "priority": "Low", "products": [], "risk_types": ["Schedule"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 2], "state": "open", "subsystems": ["software"], "tier": "low", "title": "Documentation backlog for closeout package", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7"}, {"current_score": 4, "display_title": "On-board storage margin below 20%", "iid": "8", "other_labels": [], "priority": "Low", "products": ["WCC078"], "risk_types": ["Technical"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 4], "state": "open", "subsystems": ["software"], "tier": "low", "title": "On-board storage margin below 20%", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8"}, {"current_score": 6, "display_title": "Vibration test fixture rework", "iid": "9", "other_labels": [], "priority": "Medium", "products": ["TO6- WCC Pre-SRR"], "risk_types": ["Cost"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 6], "state": "open", "subsystems": ["mechanical"], "tier": "medium", "title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9"}, {"current_score": 16, "display_title": "Optical contamination during integration", "iid": "10", "other_labels": [], "priority": "High", "products": ["ESC033", "WCC100"], "risk_types": ["Technical"], "scores": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16], "state": "open", "subsystems": ["optics"], "tier": "critical", "title": "Optical contamination during integration", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10"}]};
+const risks = [{"iid": "2", "title": "Risk# 8 Staffing for legacy software", "display_title": "Staffing for legacy software", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/2", "state": "open", "consequence": 4, "likelihood": 4, "score": 16, "tier": "critical", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "High", "risk_types": ["Schedule", "Cost"], "subsystems": ["software"], "products": ["TO8- Software Dev", "WCC078"], "other_labels": [], "assignees": [{"name": "Mae Jemison", "username": "mjemison", "web_url": "https://gitlab.example.com/mjemison"}], "health_status": null, "sections": {"risk_description": {"html": "<p>Given that the decision has been made to adapt legacy software for this mission and the<br>\nAgency projects a scarcity of qualified programmers familiar with the legacy language,<br>\nthere is a possibility that there may be <strong>insufficient staffing at the high labor<br>\ncategories</strong> adversely impacting the control software, which could result in delays in<br>\nthe delivery of the software and/or software reliability issues.</p>", "preview": "Given that the decision has been made to adapt legacy software for this mission and the Agency projects a scarcity of qualified programmers familiar with the legacy language, there is a possibility that there may be insufficient staffing at the high labor categories adversely imp\u2026", "full_text": "Given that the decision has been made to adapt legacy software for this mission and the Agency projects a scarcity of qualified programmers familiar with the legacy language, there is a possibility that there may be insufficient staffing at the high labor categories adversely impacting the control software, which could result in delays in the delivery of the software and/or software reliability issues.", "has_more": true}, "notes": {"html": "<ul>\n<li>Survey current legacy-language staff for retirement intent within the next 24 months.</li>\n<li>Begin knowledge-capture sprints with senior engineers.</li>\n<li>Open requisitions for two senior engineers familiar with the legacy stack.</li>\n</ul>", "preview": "Survey current legacy-language staff for retirement intent within the next 24 months. Begin knowledge-capture sprints with senior engineers. Open requisitions for two senior engineers familiar with the legacy stack.", "full_text": "Survey current legacy-language staff for retirement intent within the next 24 months. Begin knowledge-capture sprints with senior engineers. Open requisitions for two senior engineers familiar with the legacy stack.", "has_more": false}, "mitigation_plan": {"html": "<p>If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting<br>\neffort to the modern language and accept an ~9-month schedule slip.</p>\n<p><em>Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.</em></p>", "preview": "If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting effort to the modern language and accept an ~9-month schedule slip. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.", "full_text": "If the staffing gap exceeds 2 FTE at the high labor categories, accelerate the porting effort to the modern language and accept an ~9-month schedule slip. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 8.", "has_more": false}}}, {"iid": "10", "title": "Optical contamination during integration", "display_title": "Optical contamination during integration", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/10", "state": "open", "consequence": 4, "likelihood": 4, "score": 16, "tier": "critical", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "High", "risk_types": ["Technical"], "subsystems": ["optics"], "products": ["ESC033", "WCC100"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "1", "title": "Risk# 1A Planetary contamination from aerocapture breakup", "display_title": "Planetary contamination from aerocapture breakup", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/1", "state": "open", "consequence": 5, "likelihood": 3, "score": 15, "tier": "high", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "High", "risk_types": ["Technical"], "subsystems": ["mechanical", "thermal"], "products": ["TO12- Planet X EDL", "WCC100"], "other_labels": [], "assignees": [{"name": "Sally Ride", "username": "sride", "web_url": "https://gitlab.example.com/sride"}], "health_status": null, "sections": {"risk_description": {"html": "<p>Given that the state of knowledge of Planet X's atmosphere is <strong>limited</strong>, that it is<br>\ndifficult to ascertain more information about Planet X's atmosphere from Earth, and that<br>\nthe spacecraft contains radioactive material, there is a possibility of unanticipated<br>\natmospheric characteristics during the aerocapture maneuver at Planet X leading to a<br>\nless-than-optimal trajectory adversely impacting the spacecraft, thereby resulting in<br>\nspacecraft breakup and radioactive contamination of Planet X.</p>", "preview": "Given that the state of knowledge of Planet X's atmosphere is limited, that it is difficult to ascertain more information about Planet X's atmosphere from Earth, and that the spacecraft contains radioactive material, there is a possibility of unanticipated atmospheric characteris\u2026", "full_text": "Given that the state of knowledge of Planet X's atmosphere is limited, that it is difficult to ascertain more information about Planet X's atmosphere from Earth, and that the spacecraft contains radioactive material, there is a possibility of unanticipated atmospheric characteristics during the aerocapture maneuver at Planet X leading to a less-than-optimal trajectory adversely impacting the spacecraft, thereby resulting in spacecraft breakup and radioactive contamination of Planet X.", "has_more": true}, "notes": {"html": "<ul>\n<li>Refine atmospheric uncertainty model with the latest flyby data.</li>\n<li>Add margin to heat-shield ablation analysis for upper-bound density.</li>\n<li>Coordinate with the planetary protection office on contamination scenarios.</li>\n</ul>", "preview": "Refine atmospheric uncertainty model with the latest flyby data. Add margin to heat-shield ablation analysis for upper-bound density. Coordinate with the planetary protection office on contamination scenarios.", "full_text": "Refine atmospheric uncertainty model with the latest flyby data. Add margin to heat-shield ablation analysis for upper-bound density. Coordinate with the planetary protection office on contamination scenarios.", "has_more": false}, "mitigation_plan": {"html": "<p>If shield margin remains below 30% after the refined analysis, expand the aerocapture<br>\ncorridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact<br>\n~6 months; cost impact ~$45M.</p>\n<p><em>Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(a).</em></p>", "preview": "If shield margin remains below 30% after the refined analysis, expand the aerocapture corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact ~6 months; cost impact ~$45M. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(\u2026", "full_text": "If shield margin remains below 30% after the refined analysis, expand the aerocapture corridor or switch to a propulsive orbit-insertion strategy. Estimated schedule impact ~6 months; cost impact ~$45M. Source: NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A), Example 1(a).", "has_more": true}}}, {"iid": "4", "title": "Spacecraft Pu power source thermal loading", "display_title": "Spacecraft Pu power source thermal loading", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/4", "state": "open", "consequence": 4, "likelihood": 3, "score": 12, "tier": "high", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "High", "risk_types": ["Technical"], "subsystems": ["thermal"], "products": ["TO12- Planet X EDL"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "3", "title": "Cryocooler procurement long lead", "display_title": "Cryocooler procurement long lead", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/3", "state": "open", "consequence": 5, "likelihood": 2, "score": 10, "tier": "high", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "High", "risk_types": ["Cost", "Schedule"], "subsystems": ["mechanical", "thermal"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "5", "title": "FPGA single-event upset susceptibility", "display_title": "FPGA single-event upset susceptibility", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/5", "state": "open", "consequence": 3, "likelihood": 3, "score": 9, "tier": "medium", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "Medium", "risk_types": ["Technical"], "subsystems": ["electrical", "software"], "products": ["TO8- Software Dev"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "6", "title": "Ground software test bed availability", "display_title": "Ground software test bed availability", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/6", "state": "open", "consequence": 2, "likelihood": 4, "score": 8, "tier": "medium", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "Medium", "risk_types": ["Schedule"], "subsystems": ["software"], "products": ["TO8- Software Dev"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "9", "title": "Vibration test fixture rework", "display_title": "Vibration test fixture rework", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/9", "state": "open", "consequence": 3, "likelihood": 2, "score": 6, "tier": "medium", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "Medium", "risk_types": ["Cost"], "subsystems": ["mechanical"], "products": ["TO6- WCC Pre-SRR"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "8", "title": "On-board storage margin below 20%", "display_title": "On-board storage margin below 20%", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/8", "state": "open", "consequence": 2, "likelihood": 2, "score": 4, "tier": "low", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "Low", "risk_types": ["Technical"], "subsystems": ["software"], "products": ["WCC078"], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}, {"iid": "7", "title": "Documentation backlog for closeout package", "display_title": "Documentation backlog for closeout package", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/7", "state": "open", "consequence": 1, "likelihood": 2, "score": 2, "tier": "low", "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null, "priority": "Low", "risk_types": ["Schedule"], "subsystems": ["software"], "products": [], "other_labels": [], "assignees": [], "health_status": null, "sections": {"risk_description": {"html": "", "preview": "", "full_text": "", "has_more": false}, "notes": {"html": "", "preview": "", "full_text": "", "has_more": false}, "mitigation_plan": {"html": "", "preview": "", "full_text": "", "has_more": false}}}];
+const SECTION_META = [{"header": "Risk Description", "key": "risk_description", "slug": "risk-description"}, {"header": "Notes", "key": "notes", "slug": "notes"}, {"header": "Mitigation Plan", "key": "mitigation_plan", "slug": "mitigation-plan"}];
+const unscored = [{"iid": "11", "title": "Unscored placeholder pending review", "display_title": "Unscored placeholder pending review", "web_url": "https://gitlab.example.com/stp/sub/-/work_items/11", "state": "open", "consequence": null, "likelihood": null, "priority": "Low", "risk_types": [], "subsystems": ["software"], "products": [], "other_labels": [], "assignees": [], "created_at": "2026-07-13T17:29:56+00:00", "closed_at": null}];
+const SERVER_URL = "https://gitlab.example.com";
+const GROUP_PATH = "stp";
+
+function labelUrl(label) {
+  if (!SERVER_URL) return '#';
+  return `${SERVER_URL}/groups/${encodeURIComponent(GROUP_PATH)}/-/issues?label_name%5B%5D=${encodeURIComponent(label)}`;
+}
+
+const MAX_TITLE_CHARS = 38;
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function truncate(s, n) {
+  if (!s) return '';
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function getMulti(id) {
+  const el = document.getElementById(id);
+  if (!el) return [];
+  return Array.from(el.selectedOptions).map(o => o.value).filter(v => v !== '');
+}
+
+const selectedTiers = new Set();
+
+function currentFilter() {
+  return {
+    status:   document.getElementById('f-status').value,
+    subs:     getMulti('f-subsystem'),
+    pri:      document.getElementById('f-priority').value,
+    rt:       document.getElementById('f-risktype').value,
+    products: getMulti('f-products'),
+    labels:   getMulti('f-labels'),
+    tiers:    Array.from(selectedTiers),
+  };
+}
+
+function _itemAllLabels(item) {
+  return [
+    ...(item.subsystems || []),
+    ...(item.products || []),
+    ...(item.other_labels || []),
+  ];
+}
+
+function matchesFilter(item, f) {
+  if (f.status && item.state !== f.status) return false;
+  if (f.subs.length && !f.subs.some(s => (item.subsystems || []).includes(s))) return false;
+  if (f.pri && item.priority !== f.pri) return false;
+  if (f.rt && !(item.risk_types || []).includes(f.rt)) return false;
+  if (f.products.length && !f.products.some(p => (item.products || []).includes(p))) return false;
+  if (f.labels.length) {
+    const all = _itemAllLabels(item);
+    if (!f.labels.some(l => all.includes(l))) return false;
+  }
+  if (f.tiers.length && !f.tiers.includes(item.tier)) return false;
+  return true;
+}
+
+let selectedKey = null;
+
+// Pinned risk on the per-risk score chart (click a line/label to pin).
+// Survives chart re-renders so a pinned highlight persists across filter
+// changes, as long as the pinned risk is still visible.
+let pinnedRiskIid = null;
+
+function selectCell(key) {
+  selectedKey = key;
+  document.querySelectorAll('table.matrix td').forEach(td => td.classList.remove('selected'));
+  const td = document.querySelector(`td[data-cell="${key}"]`);
+  if (td) td.classList.add('selected');
+  renderDetail();
+}
+
+function renderDetail() {
+  if (!selectedKey) return;
+  const f = currentFilter();
+  const issues = (cells[selectedKey] || []).filter(i => matchesFilter(i, f));
+  const [c, l] = selectedKey.split('-');
+  document.getElementById('detail-label').textContent =
+    `Consequence ${c} × Likelihood ${l} (${issues.length} issues)`;
+  const body = document.getElementById('detail-body');
+  body.innerHTML = issues.map(i =>
+    `<tr><td><a href="${escapeHtml(i.web_url)}" target="_blank">#${escapeHtml(i.iid)}</a></td>` +
+    `<td>${escapeHtml(i.display_title || i.title)}</td></tr>`
+  ).join('') || '<tr><td colspan="2" style="color:#999">No issues match the current filter</td></tr>';
+  document.getElementById('detail-section').classList.remove('hidden');
+}
+
+function drawTrend() {
+  const svg = document.getElementById('trend-chart');
+  const W = 800, H = 200, PAD_L = 30, PAD_B = 20, PAD_R = 80;
+  const tiers = ['low', 'medium', 'high', 'critical'];
+  const colors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
+  const N = trends.labels.length;
+  if (N === 0) return;
+  let maxY = 1;
+  tiers.forEach(t => trends.series[t].forEach(v => { if (v > maxY) maxY = v; }));
+  const plotRight = W - PAD_R;
+  const xStep = (plotRight - PAD_L) / Math.max(N - 1, 1);
+  const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
+  let svgInner = '';
+  tiers.forEach(t => {
+    const pts = trends.series[t].map((v, i) => `${PAD_L + i * xStep},${yScale(v)}`).join(' ');
+    svgInner += `<polyline fill="none" stroke="${colors[t]}" stroke-width="2" points="${pts}"/>`;
+  });
+  svgInner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
+  svgInner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
+  // Current-value labels just past the right edge of each line.
+  tiers.forEach(t => {
+    const last = trends.series[t][N - 1] || 0;
+    const y = yScale(last);
+    svgInner += `<circle cx="${plotRight}" cy="${y}" r="2.5" fill="${colors[t]}"/>`;
+    svgInner += `<text x="${plotRight + 6}" y="${y + 3.5}" font-size="11" fill="${colors[t]}" font-weight="600">${t}: ${last}</text>`;
+  });
+  svgInner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${trends.labels[N - 1]}</text>`;
+  svgInner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${trends.labels[0]}</text>`;
+  svgInner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
+  svg.innerHTML = svgInner;
+}
+
+function drawRiskTrends() {
+  const svg = document.getElementById('risk-trend-chart');
+  const W = 800, H = 260, PAD_L = 30, PAD_B = 20, PAD_R = 240;
+  const tierColors = { low: '#81c784', medium: '#fff176', high: '#ffb74d', critical: '#e57373' };
+  const f = currentFilter();
+  const series = riskTrends.series.filter(s => matchesFilter(s, f));
+  document.getElementById('risk-trend-count').textContent = series.length;
+  const N = riskTrends.labels.length;
+  if (N === 0 || series.length === 0) { svg.innerHTML = ''; return; }
+  let maxY = 5;
+  series.forEach(s => s.scores.forEach(v => { if (v != null && v > maxY) maxY = v; }));
+  const plotRight = W - PAD_R;
+  const xStep = (plotRight - PAD_L) / Math.max(N - 1, 1);
+  const yScale = v => H - PAD_B - (v / maxY) * (H - PAD_B - 10);
+  let inner = '';
+  // Draw lines (skip null gaps).
+  series.forEach(s => {
+    let segs = [], cur = [];
+    s.scores.forEach((v, i) => {
+      if (v == null) { if (cur.length) { segs.push(cur); cur = []; } }
+      else cur.push(`${PAD_L + i * xStep},${yScale(v)}`);
+    });
+    if (cur.length) segs.push(cur);
+    const color = tierColors[s.tier] || '#9e9e9e';
+    const safeIid = escapeHtml(String(s.iid));
+    segs.forEach(seg => {
+      inner += `<polyline class="risk-line" data-iid="${safeIid}" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.85" points="${seg.join(' ')}"/>`;
+    });
+  });
+  // Axes.
+  inner += `<line x1="${PAD_L}" y1="${H - PAD_B}" x2="${plotRight}" y2="${H - PAD_B}" stroke="#999"/>`;
+  inner += `<line x1="${PAD_L}" y1="0" x2="${PAD_L}" y2="${H - PAD_B}" stroke="#999"/>`;
+  // Right-edge labels: ID + score, packed vertically and sorted by last value.
+  // Risks with identical current scores share a single line on the chart, so
+  // group their labels under one bracket and draw a single dotted leader from
+  // the line's endpoint to the bracket's apex.
+  const ordered = series.slice().sort((a, b) => {
+    const av = a.scores[N - 1], bv = b.scores[N - 1];
+    return (bv == null ? -1 : bv) - (av == null ? -1 : av);
+  });
+  const maxLabels = Math.floor((H - 30) / 12);
+  const visible = ordered.slice(0, maxLabels);
+  const LABEL_X = plotRight + 28;
+  const BRACKET_X = plotRight + 14;
+  // Group contiguous visible labels by their current (rightmost) score.
+  const groups = [];
+  visible.forEach((s, i) => {
+    const score = s.scores[N - 1];
+    const last = groups[groups.length - 1];
+    if (last && last.score === score) {
+      last.endIdx = i;
+      last.items.push(s);
+    } else {
+      groups.push({ score, startIdx: i, endIdx: i, items: [s] });
+    }
+  });
+  // Draw brackets + leaders behind labels.
+  groups.forEach(g => {
+    const color = tierColors[g.items[0].tier] || '#666';
+    const topY = 2 + g.startIdx * 12;     // top of first label glyph
+    const botY = 12 + g.endIdx * 12 + 2;  // bottom of last label glyph
+    const midY = (topY + botY) / 2;
+    const lineY = g.score != null ? yScale(g.score) : midY;
+    if (g.items.length > 1) {
+      // Curly-brace shape, opening toward the labels, apex pointing at the plot.
+      const ax = BRACKET_X;
+      inner += `<path d="M ${ax + 5} ${topY} L ${ax} ${topY} L ${ax} ${midY - 3} L ${ax - 5} ${midY} L ${ax} ${midY + 3} L ${ax} ${botY} L ${ax + 5} ${botY}" fill="none" stroke="${color}" stroke-width="1" opacity="0.75"/>`;
+      inner += `<line x1="${plotRight}" y1="${lineY}" x2="${ax - 5}" y2="${midY}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>`;
+    } else if (g.score != null) {
+      // Singleton: just a dotted leader from the line to the label.
+      inner += `<line x1="${plotRight}" y1="${lineY}" x2="${LABEL_X - 4}" y2="${midY}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.65"/>`;
+    }
+  });
+  // Labels themselves. (No <a> wrapper — clicking a label pins the
+  // highlight; issue navigation lives in the table below.)
+  visible.forEach((s, i) => {
+    const last = s.scores[N - 1];
+    const ny = 12 + i * 12;
+    const color = tierColors[s.tier] || '#666';
+    const lastVal = last != null ? last : '–';
+    const title = (s.display_title || s.title || '').slice(0, 28);
+    const safeIid = escapeHtml(String(s.iid));
+    inner += `<text class="risk-label" data-iid="${safeIid}" x="${LABEL_X}" y="${ny}" font-size="10" fill="${color}">#${safeIid} ${escapeHtml(title)}: ${escapeHtml(String(lastVal))}</text>`;
+  });
+  if (ordered.length > maxLabels) {
+    inner += `<text x="${LABEL_X}" y="${12 + maxLabels * 12}" font-size="10" fill="#999">… +${ordered.length - maxLabels} more</text>`;
+  }
+  // Date + max-Y axes labels.
+  inner += `<text x="${plotRight}" y="${H - 5}" text-anchor="end" font-size="11" fill="#666">${riskTrends.labels[N - 1]}</text>`;
+  inner += `<text x="${PAD_L}" y="${H - 5}" font-size="11" fill="#666">${riskTrends.labels[0]}</text>`;
+  inner += `<text x="5" y="12" font-size="11" fill="#666">${maxY}</text>`;
+  svg.innerHTML = inner;
+  // Highlight machinery: click a line or label to pin focus on a single
+  // risk (others dim to 15%). Click again, click any other risk, or click
+  // the chart background to clear. Hover provides a transient preview
+  // while no pin is active.
+  const elements = svg.querySelectorAll('.risk-line, .risk-label');
+  // Drop the pin if the risk is no longer in the current series (e.g.
+  // user changed a filter that hid it).
+  if (pinnedRiskIid && !series.some(s => String(s.iid) === pinnedRiskIid)) {
+    pinnedRiskIid = null;
+  }
+  const apply = activeIid => {
+    elements.forEach(el => {
+      if (!activeIid) {
+        el.style.opacity = '';
+        if (el.tagName === 'polyline') el.style.strokeWidth = '';
+      } else if (el.getAttribute('data-iid') === activeIid) {
+        el.style.opacity = '1';
+        if (el.tagName === 'polyline') el.style.strokeWidth = '2.5';
+      } else {
+        el.style.opacity = '0.15';
+        if (el.tagName === 'polyline') el.style.strokeWidth = '';
+      }
+    });
+  };
+  elements.forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      if (!pinnedRiskIid) apply(el.getAttribute('data-iid'));
+    });
+    el.addEventListener('mouseleave', () => {
+      if (!pinnedRiskIid) apply(null);
+    });
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.getAttribute('data-iid');
+      pinnedRiskIid = (pinnedRiskIid === id) ? null : id;
+      apply(pinnedRiskIid);
+    });
+  });
+  // Clicking the chart background (away from any line/label) clears the pin.
+  svg.addEventListener('click', e => {
+    if (e.target === svg) {
+      pinnedRiskIid = null;
+      apply(null);
+    }
+  });
+  apply(pinnedRiskIid);
+}
+
+function applyFilters() {
+  const f = currentFilter();
+  document.querySelectorAll('table.matrix td[data-cell]').forEach(td => {
+    const key = td.dataset.cell;
+    const all = cells[key] || [];
+    const filtered = all.filter(i => matchesFilter(i, f));
+    td.querySelector('.count').textContent = filtered.length;
+    const head = filtered.slice(0, 4).map(i => {
+      const title = i.display_title || i.title || '';
+      const cls = i.state === 'closed' ? ' class="closed"' : '';
+      return `<li${cls}><a href="${escapeHtml(i.web_url)}" target="_blank">${escapeHtml(truncate(title, MAX_TITLE_CHARS))}</a></li>`;
+    }).join('');
+    const tail = filtered.length > 4 ? `<li>… +${filtered.length - 4} more</li>` : '';
+    td.querySelector('ul').innerHTML = head + tail;
+  });
+  renderDetail();
+  renderTable();
+  renderUnscoredTable();
+  drawRiskTrends();
+}
+
+// === Unscored risks table ===
+
+function renderUnscoredTable() {
+  const tbody = document.getElementById('unscored-tbody');
+  if (!tbody) return;  // section omitted when no unscored items
+  const f = currentFilter();
+  // Apply all filters except severity tier — unscored items have no tier.
+  const filtered = unscored.filter(r => {
+    if (f.status && r.state !== f.status) return false;
+    if (f.subs.length && !f.subs.some(s => (r.subsystems || []).includes(s))) return false;
+    if (f.pri && r.priority !== f.pri) return false;
+    if (f.rt && !(r.risk_types || []).includes(f.rt)) return false;
+    if (f.products.length && !f.products.some(p => (r.products || []).includes(p))) return false;
+    if (f.labels.length) {
+      const all = _itemAllLabels(r);
+      if (!f.labels.some(l => all.includes(l))) return false;
+    }
+    return true;
+  });
+  document.getElementById('unscored-count').textContent = filtered.length;
+  tbody.innerHTML = filtered.map(row => {
+    const stateLabel = row.state
+      ? row.state.charAt(0).toUpperCase() + row.state.slice(1)
+      : '';
+    const subs = (row.subsystems || []).map(s =>
+      `<a class="tag subsystem" href="${labelUrl(s)}" target="_blank">${escapeHtml(s)}</a>`
+    ).join('');
+    const labels = [
+      ...(row.products || []),
+      ...(row.other_labels || []),
+    ].map(l =>
+      `<a class="tag other" href="${labelUrl(l)}" target="_blank">${escapeHtml(l)}</a>`
+    ).join('');
+    const owner = (row.assignees || []).map(a =>
+      a.web_url
+        ? `<a href="${escapeHtml(a.web_url)}" target="_blank">${escapeHtml(a.name)}</a>`
+        : escapeHtml(a.name)
+    ).join(', ');
+    const opened = row.created_at ? String(row.created_at).slice(0, 10) : '';
+    return `<tr>`
+      + `<td class="num"><a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)}</a></td>`
+      + `<td><a href="${escapeHtml(row.web_url)}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`
+      + `<td><span class="state-pill state-${escapeHtml(row.state)}">${escapeHtml(stateLabel)}</span></td>`
+      + `<td>${escapeHtml(row.priority || '')}</td>`
+      + `<td>${owner}</td>`
+      + `<td>${subs}</td>`
+      + `<td>${labels}</td>`
+      + `<td class="num">${escapeHtml(opened)}</td>`
+      + `</tr>`;
+  }).join('');
+}
+
+// === Risks table ===
+
+const SECTION_KEYS = SECTION_META.map(s => s.key);
+const COLUMNS = [
+  { key: 'iid',           header: 'ID',         kind: 'link' },
+  { key: 'display_title', header: 'Title',      kind: 'title' },
+  { key: 'state',         header: 'Status',     kind: 'state' },
+  { key: 'health_status', header: 'Health',     kind: 'health', defaultHidden: true },
+  { key: 'created_at',    header: 'Opened',     kind: 'date', defaultHidden: true },
+  { key: 'closed_at',     header: 'Closed',     kind: 'date', defaultHidden: true },
+  { key: 'consequence',   header: 'C',          kind: 'num' },
+  { key: 'likelihood',    header: 'L',          kind: 'num' },
+  { key: 'score',         header: 'Score',      kind: 'num' },
+  { key: 'priority',      header: 'Priority',   kind: 'text' },
+  { key: 'risk_types',    header: 'Risk Type',  kind: 'tags' },
+  { key: 'subsystems',    header: 'Subsystems', kind: 'labels-subsystem' },
+  { key: 'products',      header: 'Product',    kind: 'labels-product' },
+  { key: 'assignees',     header: 'Owner',      kind: 'assignees' },
+  ...SECTION_META.map(s => ({ key: s.key, header: s.header, kind: 'section' })),
+  { key: 'other_labels',  header: 'Other labels', kind: 'labels-other' },
+];
+
+const COL_STATE_KEY = 'risks-cols-v1';
+const SORT_STATE_KEY = 'risks-sort-v1';
+
+function getColState() {
+  try { return JSON.parse(localStorage.getItem(COL_STATE_KEY)) || {}; }
+  catch { return {}; }
+}
+function setColState(s) {
+  try { localStorage.setItem(COL_STATE_KEY, JSON.stringify(s)); } catch {}
+}
+function isColVisible(col) {
+  const s = getColState();
+  if (Object.prototype.hasOwnProperty.call(s, col.key)) return s[col.key];
+  return !col.defaultHidden;
+}
+
+let sortState;
+try { sortState = JSON.parse(localStorage.getItem(SORT_STATE_KEY)); } catch {}
+if (!sortState || !sortState.key) sortState = { key: 'score', dir: 'desc' };
+
+function renderColToggles() {
+  const wrap = document.getElementById('col-toggles');
+  wrap.innerHTML = COLUMNS.map(c => `
+    <label><input type="checkbox" data-col="${c.key}"${isColVisible(c) ? ' checked' : ''}> ${escapeHtml(c.header)}</label>
+  `).join('');
+  wrap.querySelectorAll('input').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const s = getColState();
+      s[cb.dataset.col] = cb.checked;
+      setColState(s);
+      renderTable();
+    });
+  });
+}
+
+function renderThead() {
+  const tr = document.getElementById('risks-thead');
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  tr.innerHTML = cols.map(c => {
+    const sorted = sortState.key === c.key;
+    const ind = sorted ? (sortState.dir === 'desc' ? '↓' : '↑') : '↕';
+    return `<th data-sort="${c.key}" class="${sorted ? 'sorted' : ''}">${escapeHtml(c.header)}<span class="sort-indicator">${ind}</span></th>`;
+  }).join('');
+  tr.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.sort;
+      if (sortState.key === k) {
+        sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        sortState.key = k; sortState.dir = 'desc';
+      }
+      try { localStorage.setItem(SORT_STATE_KEY, JSON.stringify(sortState)); } catch {}
+      renderTable();
+    });
+  });
+}
+
+function sortValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
+    return (row[col.key] || []).join(', ');
+  }
+  return row[col.key] != null ? row[col.key] : '';
+}
+
+function sortRows(rows) {
+  const col = COLUMNS.find(c => c.key === sortState.key) || COLUMNS.find(c => c.key === 'score');
+  const dir = sortState.dir === 'desc' ? -1 : 1;
+  return rows.slice().sort((a, b) => {
+    let va = sortValue(a, col), vb = sortValue(b, col);
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return  1 * dir;
+    return 0;
+  });
+}
+
+function renderCell(row, col) {
+  switch (col.kind) {
+    case 'link':
+      return `<td class="num"><a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)}</a></td>`;
+    case 'title':
+      return `<td><a href="${escapeHtml(row.web_url)}" target="_blank">${escapeHtml(row.display_title || row.title || '')}</a></td>`;
+    case 'num':
+      return `<td class="num">${row[col.key] != null ? row[col.key] : ''}</td>`;
+    case 'state': {
+      const s = row.state || '';
+      const label = s.charAt(0).toUpperCase() + s.slice(1);
+      return `<td><span class="state-pill state-${escapeHtml(s)}">${escapeHtml(label)}</span></td>`;
+    }
+    case 'date': {
+      const v = row[col.key];
+      return `<td class="num">${v ? escapeHtml(String(v).slice(0, 10)) : ''}</td>`;
+    }
+    case 'health': {
+      const h = row.health_status;
+      if (!h) return '<td></td>';
+      const labels = { onTrack: 'On track', needsAttention: 'Needs attention', atRisk: 'At risk' };
+      return `<td><span class="health-pill health-${escapeHtml(h)}">${escapeHtml(labels[h] || h)}</span></td>`;
+    }
+    case 'tags':
+      return `<td>${(row[col.key] || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>`;
+    case 'labels-subsystem':
+    case 'labels-product':
+    case 'labels-other': {
+      const cls = col.kind === 'labels-subsystem' ? 'tag subsystem'
+                : col.kind === 'labels-other'     ? 'tag other'
+                : 'tag';
+      return `<td>${(row[col.key] || []).map(t =>
+        `<a class="${cls}" href="${labelUrl(t)}" target="_blank" title="Search issues with this label">${escapeHtml(t)}</a>`
+      ).join('')}</td>`;
+    }
+    case 'assignees':
+      return `<td>${(row.assignees || []).map(a =>
+        a.web_url
+          ? `<a href="${escapeHtml(a.web_url)}" target="_blank">${escapeHtml(a.name)}</a>`
+          : escapeHtml(a.name)
+      ).join(', ')}</td>`;
+    case 'section': {
+      const sec = (row.sections || {})[col.key] || {};
+      const preview = escapeHtml(sec.preview || '');
+      const more = sec.has_more
+        ? ` <a class="see-more" data-iid="${escapeHtml(row.iid)}" data-key="${col.key}">see more</a>`
+        : '';
+      const meta = SECTION_META.find(s => s.key === col.key);
+      const slug = meta ? meta.slug : '';
+      const editUrl = slug ? `${row.web_url}#${slug}` : row.web_url;
+      const edit = `<a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎</a>`;
+      return `<td class="markdown"><div class="preview">${preview}</div>${more}${edit}</td>`;
+    }
+    case 'text':
+    default:
+      return `<td>${escapeHtml(row[col.key] != null ? String(row[col.key]) : '')}</td>`;
+  }
+}
+
+function renderTable() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  document.getElementById('row-count').textContent = sorted.length;
+  renderThead();
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  const tbody = document.getElementById('risks-tbody');
+  tbody.innerHTML = sorted.map(row => '<tr>' + cols.map(c => renderCell(row, c)).join('') + '</tr>').join('');
+  tbody.querySelectorAll('a.see-more').forEach(a => {
+    a.addEventListener('click', () => openSection(a.dataset.iid, a.dataset.key));
+  });
+}
+
+function openSection(iid, key) {
+  const row = risks.find(r => String(r.iid) === String(iid));
+  if (!row) return;
+  const sec = (row.sections || {})[key] || {};
+  const col = COLUMNS.find(c => c.key === key);
+  const meta = SECTION_META.find(s => s.key === key);
+  const editUrl = meta && meta.slug ? `${row.web_url}#${meta.slug}` : row.web_url;
+  document.getElementById('modal-body').innerHTML =
+    `<h2>${escapeHtml(col.header)} — <a href="${escapeHtml(row.web_url)}" target="_blank">#${escapeHtml(row.iid)} ${escapeHtml(row.display_title || row.title || '')}</a>`
+    + ` <a class="edit-link" href="${escapeHtml(editUrl)}" target="_blank" title="Edit in GitLab">✎ edit</a></h2>`
+    + (sec.html || '<em>(empty)</em>');
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target.id === 'modal') closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+function csvCell(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function csvValue(row, col) {
+  if (col.kind === 'section') return (row.sections[col.key] || {}).full_text || '';
+  if (col.kind === 'assignees') return (row.assignees || []).map(a => a.name).join(', ');
+  if (col.kind === 'tags' || col.kind.startsWith('labels-')) {
+    return (row[col.key] || []).join(', ');
+  }
+  if (col.kind === 'link') return `#${row.iid}`;
+  if (col.kind === 'title') return row.display_title || row.title || '';
+  if (col.kind === 'health') return row.health_status || '';
+  return row[col.key] != null ? row[col.key] : '';
+}
+function exportCsv() {
+  const f = currentFilter();
+  const filtered = risks.filter(r => matchesFilter(r, f));
+  const sorted = sortRows(filtered);
+  const cols = COLUMNS.filter(c => isColVisible(c));
+  // Always include a GitLab Link column at the end (full URL).
+  const header = cols.map(c => csvCell(c.header)).concat(['GitLab Link']).join(',');
+  const rows = sorted.map(r =>
+    cols.map(c => csvCell(csvValue(r, c))).concat([csvCell(r.web_url)]).join(',')
+  );
+  const csv = '﻿' + [header, ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'risks-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+document.getElementById('export-csv').addEventListener('click', exportCsv);
+
+document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
+document.querySelectorAll('.legend-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tier;
+    if (selectedTiers.has(t)) { selectedTiers.delete(t); btn.classList.remove('active'); }
+    else { selectedTiers.add(t); btn.classList.add('active'); }
+    applyFilters();
+  });
+});
+document.getElementById('clear-filters').addEventListener('click', () => {
+  document.querySelectorAll('.filters select').forEach(el => {
+    Array.from(el.options).forEach(o => o.selected = false);
+    if (!el.multiple) el.value = '';
+  });
+  selectedTiers.clear();
+  document.querySelectorAll('.legend-chip').forEach(c => c.classList.remove('active'));
+  applyFilters();
+});
+renderColToggles();
+applyFilters();
+drawTrend();
+</script>
+
+</body>
+</html>

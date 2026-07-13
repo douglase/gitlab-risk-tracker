@@ -1,0 +1,247 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gitlab-risk-tracker &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Example dashboard" href="preview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">gitlab-risk-tracker</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/index.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gitlab-risk-tracker">
+<h1>gitlab-risk-tracker<a class="headerlink" href="#gitlab-risk-tracker" title="Link to this heading"></a></h1>
+<p>A members-only GitLab Pages dashboard that renders a 5×5
+consequence-by-likelihood risk matrix for issues in a GitLab group,
+plus per-risk trend charts, a filterable risks table, and a daily
+append-only change-event history.</p>
+<p>The tool is designed for engineering organizations that already track
+risks as GitLab issues with custom fields and want a single read-only
+view of “where do we stand right now and how did we get here.”</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The examples in this documentation use a group named <code class="docutils literal notranslate"><span class="pre">stp</span></code> and a
+dashboard project named <code class="docutils literal notranslate"><span class="pre">stp/risks-dashboard</span></code>. These are just
+placeholders — <strong>wherever you see</strong> <code class="docutils literal notranslate"><span class="pre">stp</span></code><strong>, substitute your own
+group path</strong> (for example <code class="docutils literal notranslate"><span class="pre">platform/security</span></code>). The group to scan
+is controlled by the <code class="docutils literal notranslate"><span class="pre">RISK_GROUP_PATH</span></code> setting; see
+<a class="reference internal" href="deployment.html"><span class="doc">Deploying on GitLab</span></a>.</p>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="preview.html#where-the-fixture-data-comes-from">Where the fixture data comes from</a></li>
+<li class="toctree-l2"><a class="reference internal" href="preview.html#regenerating-the-preview">Regenerating the preview</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#install">Install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#dry-run">Dry run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#running-the-tests">Running the tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gitlab-setup.html#custom-fields">Custom fields</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitlab-setup.html#labels">Labels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitlab-setup.html#issue-description-template">Issue description template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitlab-setup.html#title-convention">Title convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gitlab-setup.html#health-status-optional">Health status (optional)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#matrix">5×5 matrix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#filters">Filters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#charts">Charts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#risks-table">Risks table</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#unscored-risks">Unscored risks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#csv-export">CSV export</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#edit-pencils">Edit pencils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#version-footer">Version footer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#install">Install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#spreadsheet-format">Spreadsheet format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#previewing-in-gitlab">Previewing in GitLab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#how-it-handles-edge-cases">How it handles edge cases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#reading-the-output">Reading the output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="importer.html#recovering-from-a-bad-run">Recovering from a bad run</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#project-setup">Project setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#ci-cd-variables">CI/CD variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#protected-branches">Protected branches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#schedule">Schedule</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#manual-trigger">Manual trigger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#behavior-summary">Behavior summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="deployment.html#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#workflow">Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#coding-conventions">Coding conventions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#tests">Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="contributing.html#continuous-integration">Continuous integration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="license.html#third-party-dependencies">Third-party dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="license.html#example-data">Example data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="license.html#enforced-license-scanning">Enforced license scanning</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<section id="quick-start">
+<h2>Quick start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Create a GitLab project to host the dashboard (default branch
+protected, <a class="reference external" href="https://docs.gitlab.com/user/project/pages/">Pages</a>
+enabled with “Only project members” access).</p></li>
+<li><p>Set up custom fields and labels on your source group as described in
+<a class="reference internal" href="gitlab-setup.html"><span class="doc">GitLab project setup</span></a>.</p></li>
+<li><p>Copy this repository into that project (see <a class="reference internal" href="deployment.html"><span class="doc">Deploying on GitLab</span></a>);
+configure CI/CD variables.</p></li>
+<li><p>Trigger the pipeline manually; verify the dashboard URL.</p></li>
+<li><p>Add a daily schedule (02:00 UTC is the suggested default).</p></li>
+</ol>
+<p>See <a class="reference internal" href="deployment.html"><span class="doc">Deploying on GitLab</span></a> for the full walk-through.</p>
+</section>
+<section id="what-you-need-before-starting">
+<h2>What you need before starting<a class="headerlink" href="#what-you-need-before-starting" title="Link to this heading"></a></h2>
+<p>This tool relies on several GitLab features. Confirm you have them:</p>
+<ul class="simple">
+<li><p><strong>A GitLab group whose issues you want to track.</strong> Custom fields are
+a paid-tier feature; see
+<a class="reference external" href="https://docs.gitlab.com/user/work_items/custom_fields/">custom fields</a>
+for current availability.</p></li>
+<li><p><strong>At least one CI/CD runner</strong> available to the dashboard project, with
+outbound HTTPS so it can <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> dependencies. See
+<a class="reference external" href="https://docs.gitlab.com/ci/runners/">GitLab Runner</a>. Shared
+(“instance”) runners are the simplest option if your administrator
+has enabled them.</p></li>
+<li><p><strong>GitLab Pages enabled on your instance.</strong> See
+<a class="reference external" href="https://docs.gitlab.com/user/project/pages/">GitLab Pages</a>.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The documentation links here point to <code class="docutils literal notranslate"><span class="pre">docs.gitlab.com</span></code> (GitLab
+SaaS). If you run a self-managed instance, the version-matched copy
+of every page is available on your own server at
+<code class="docutils literal notranslate"><span class="pre">https://YOUR-GITLAB-HOST/help</span></code> — prefer that if a feature looks
+different from the screenshots in the public docs.</p>
+</div>
+</section>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="preview.html" class="btn btn-neutral float-right" title="Example dashboard" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

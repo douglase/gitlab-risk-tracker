@@ -1,0 +1,374 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Importing from a spreadsheet &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Deploying on GitLab" href="deployment.html" />
+    <link rel="prev" title="Using the dashboard" href="usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Importing from a spreadsheet</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#install">Install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#spreadsheet-format">Spreadsheet format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#previewing-in-gitlab">Previewing in GitLab</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-it-handles-edge-cases">How it handles edge cases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reading-the-output">Reading the output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recovering-from-a-bad-run">Recovering from a bad run</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Importing from a spreadsheet</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/importer.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="importing-from-a-spreadsheet">
+<h1>Importing from a spreadsheet<a class="headerlink" href="#importing-from-a-spreadsheet" title="Link to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">scripts/import_smartsheet.py</span></code> is a standalone, <strong>non-destructive</strong>
+tool for migrating risk text from a Smartsheets / Excel export into the
+matching GitLab issue descriptions. It is separate from the dashboard
+build: run it by hand when you want to pull spreadsheet content into
+GitLab, then let the normal pipeline pick the change up on its next run.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The importer <strong>never overwrites</strong> existing issue content. For each
+row it <em>appends</em> a clearly-marked “proposal block” to the bottom of
+the issue description containing the spreadsheet text (and a diff
+against the current section, if one exists). A human reviews each
+proposal in GitLab and decides whether to adopt it. Re-running the
+importer refreshes its own proposal blocks in place rather than
+duplicating them.</p>
+</div>
+<section id="install">
+<h2>Install<a class="headerlink" href="#install" title="Link to this heading"></a></h2>
+<p>The importer reads <code class="docutils literal notranslate"><span class="pre">.xlsx</span></code> files with
+<a class="reference external" href="https://openpyxl.readthedocs.io/">openpyxl</a>, which is <strong>not</strong> in the
+dashboard’s <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code> (the dashboard never touches Excel).
+Install it into the same conda/mamba environment from <a class="reference internal" href="setup.html"><span class="doc">Local setup</span></a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>risk-tracker
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w"> </span>openpyxl
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">openpyxl</span></code> is imported lazily, so the importer’s unit tests run
+without it; you only need it for a real run against a spreadsheet.</p>
+</section>
+<section id="spreadsheet-format">
+<h2>Spreadsheet format<a class="headerlink" href="#spreadsheet-format" title="Link to this heading"></a></h2>
+<p>The importer matches columns by header name (case-insensitive,
+surrounding whitespace ignored). Only these are read; every other
+column is left alone.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 25.0%" />
+<col style="width: 45.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Column header</p></th>
+<th class="head"><p>Maps to</p></th>
+<th class="head"><p>Notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GitLab</span> <span class="pre">Link</span></code></p></td>
+<td><p>issue to update</p></td>
+<td><p>Full issue URL, e.g.
+<code class="docutils literal notranslate"><span class="pre">https://gitlab.example.com/grp/proj/-/issues/123</span></code>. Any column
+whose header contains both “gitlab” and “link” works. <strong>Required
+per row</strong> — rows without one are skipped and reported.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Risk</span> <span class="pre">Description</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">##</span> <span class="pre">Risk</span> <span class="pre">Description</span></code></p></td>
+<td><p>Also accepts <code class="docutils literal notranslate"><span class="pre">Description</span></code>, <code class="docutils literal notranslate"><span class="pre">Summary</span></code> headings on the issue
+side.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Action</span> <span class="pre">Plan/</span> <span class="pre">Notes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">##</span> <span class="pre">Notes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Action</span> <span class="pre">Plan</span> <span class="pre">/</span> <span class="pre">Notes</span></code>, <code class="docutils literal notranslate"><span class="pre">Action</span> <span class="pre">Plan/Notes</span></code> and <code class="docutils literal notranslate"><span class="pre">Notes</span></code> are
+all accepted.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Risk</span> <span class="pre">Mitigation</span> <span class="pre">Planning</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">##</span> <span class="pre">Mitigation</span> <span class="pre">Plan</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Mitigation</span> <span class="pre">Plan</span></code> is also accepted.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Unique</span> <span class="pre">Risk</span> <span class="pre">ID</span></code></p></td>
+<td><p>proposal-block identity</p></td>
+<td><p>Optional but recommended. Also accepts <code class="docutils literal notranslate"><span class="pre">Risk</span> <span class="pre">ID</span></code>, <code class="docutils literal notranslate"><span class="pre">Risk_ID</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Risk</span> <span class="pre">#</span></code>. Tags each proposal block so re-runs update the right
+one and so per-row diagnostics name the row. When absent, a
+stable hash of the row’s content is used instead.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Modification</span> <span class="pre">Date</span></code></p></td>
+<td><p>attribution footer</p></td>
+<td><p>Optional. Also accepts <code class="docutils literal notranslate"><span class="pre">Modified</span> <span class="pre">Date</span></code>, <code class="docutils literal notranslate"><span class="pre">Last</span> <span class="pre">Modified</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Modified</span></code>, <code class="docutils literal notranslate"><span class="pre">Updated</span></code>, <code class="docutils literal notranslate"><span class="pre">Date</span> <span class="pre">Modified</span></code>. Date-typed cells
+render as <code class="docutils literal notranslate"><span class="pre">YYYY-MM-DD</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Each appended proposal block carries an italic attribution line, e.g.
+<code class="docutils literal notranslate"><span class="pre">*(imported</span> <span class="pre">from</span> <span class="pre">Risk</span> <span class="pre">Register.xlsx,</span> <span class="pre">Unique</span> <span class="pre">Risk</span> <span class="pre">ID:</span> <span class="pre">LPY016,</span>
+<span class="pre">Modification</span> <span class="pre">Date:</span> <span class="pre">2025-07-22,</span> <span class="pre">on</span> <span class="pre">2026-06-12)*</span></code>.</p>
+<p>When the issue <strong>already has</strong> a section with the same name, the
+imported copy is set apart with a horizontal rule and a plain-text
+bold label (<strong>not</strong> a heading) so it stays <em>inside</em> the existing
+section:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">---</span>
+
+<span class="o">**</span><span class="n">Mitigation</span> <span class="n">Plan</span> <span class="n">_</span><span class="p">(</span><span class="n">imported</span> <span class="kn">from</span><span class="w"> </span><span class="nn">spreadsheet</span><span class="p">)</span><span class="n">_</span><span class="o">**</span>
+</pre></div>
+</div>
+<p>This matters for the dashboard: a markdown heading there would end the
+existing canonical section and strand the imported text where the
+dashboard’s section parser can’t see it. Keeping the label as plain
+text lets the imported content flow through to the dashboard alongside
+the original.</p>
+<p>For a section the issue doesn’t have yet, a real <code class="docutils literal notranslate"><span class="pre">###</span> <span class="pre">&lt;name&gt;</span></code> heading
+is used instead — the proposal <em>is</em> the section, so it needs a
+canonical heading or its content would be filed under the preceding
+section.</p>
+<p>No inline diff is embedded in the proposal. Because an imported update
+to an existing section flows through to the dashboard, an embedded diff
+would flatten into clutter there (the dashboard sanitizer strips
+<code class="docutils literal notranslate"><span class="pre">&lt;details&gt;</span></code>), and the old text already sits directly above the new
+text in the same section. To review changes line-by-line before
+committing, use <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> (which prints a unified diff to your
+terminal).</p>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h2>
+<p>Always dry-run first. <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> prints a unified diff per changed
+issue and writes nothing.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GITLAB_TOKEN</span><span class="o">=</span>&lt;token-with-api-scope&gt;
+
+<span class="c1"># Preview a single issue by iid</span>
+python<span class="w"> </span>scripts/import_smartsheet.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xlsx<span class="w"> </span><span class="s2">&quot;Risk Register.xlsx&quot;</span><span class="w"> </span>--issue<span class="w"> </span><span class="m">131</span><span class="w"> </span>--dry-run
+
+<span class="c1"># Preview the first three matched rows</span>
+python<span class="w"> </span>scripts/import_smartsheet.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xlsx<span class="w"> </span><span class="s2">&quot;Risk Register.xlsx&quot;</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">3</span><span class="w"> </span>--dry-run
+
+<span class="c1"># Real run (writes proposal blocks back to GitLab)</span>
+python<span class="w"> </span>scripts/import_smartsheet.py<span class="w"> </span>--xlsx<span class="w"> </span><span class="s2">&quot;Risk Register.xlsx&quot;</span>
+</pre></div>
+</div>
+<p>The token needs <code class="docutils literal notranslate"><span class="pre">api</span></code> scope (read <strong>and</strong> write), unlike the
+dashboard’s read-only <code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span></code>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 78.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--xlsx</span> <span class="pre">PATH</span></code></p></td>
+<td><p>The spreadsheet export. <strong>Required.</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--token</span></code> / <code class="docutils literal notranslate"><span class="pre">--token-env</span></code></p></td>
+<td><p>Token value, or the env var to read it from (default
+<code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span></code>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--server</span> <span class="pre">URL</span></code></p></td>
+<td><p>Override the GitLab base URL (default: parsed from each row’s
+<code class="docutils literal notranslate"><span class="pre">GitLab</span> <span class="pre">Link</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--sheet</span> <span class="pre">NAME</span></code></p></td>
+<td><p>Worksheet to read (default: the active sheet).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--dry-run</span></code></p></td>
+<td><p>Print diffs; make no changes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--print-markdown</span></code></p></td>
+<td><p>Instead of a diff, print the full proposed issue description as
+clean, pasteable markdown; never writes (implies <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code>).
+See below.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--limit</span> <span class="pre">N</span></code></p></td>
+<td><p>Process at most N matched rows.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--issue</span> <span class="pre">IID</span></code></p></td>
+<td><p>Process only the row whose link points at this issue iid.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--backup</span> <span class="pre">PATH</span></code></p></td>
+<td><p>Where to append the original descriptions before any write
+(default: a timestamped <code class="docutils literal notranslate"><span class="pre">backup-*.jsonl</span></code> in the working
+directory). Always written, even on a dry run’s matched rows.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="previewing-in-gitlab">
+<h2>Previewing in GitLab<a class="headerlink" href="#previewing-in-gitlab" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> shows a unified diff, which is great for review but not
+something you can paste anywhere. When you’d rather <em>see</em> how the
+result will render, use <code class="docutils literal notranslate"><span class="pre">--print-markdown</span></code> (which implies
+<code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> — it never writes):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/import_smartsheet.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--xlsx<span class="w"> </span><span class="s2">&quot;Risk Register.xlsx&quot;</span><span class="w"> </span>--issue<span class="w"> </span><span class="m">131</span><span class="w"> </span>--print-markdown
+</pre></div>
+</div>
+<p>This prints the <strong>complete proposed description</strong> for each changed
+issue — exactly what would be written — so you can copy it into the
+issue’s description box in GitLab and click <em>Preview</em> to see the
+rendered result before committing to a real run.</p>
+<p>Each issue’s block is introduced by an HTML-comment delimiter such as
+<code class="docutils literal notranslate"><span class="pre">&lt;!--</span> <span class="pre">=====</span> <span class="pre">LPY016</span> <span class="pre">→</span> <span class="pre">grp/proj#131</span> <span class="pre">...</span> <span class="pre">=====</span> <span class="pre">--&gt;</span></code>. HTML comments are
+invisible in GitLab’s rendered markdown, so even if you copy the whole
+block (delimiter included) the preview stays clean. Pair the flag with
+<code class="docutils literal notranslate"><span class="pre">--issue</span> <span class="pre">&lt;iid&gt;</span></code> to get a single issue’s markdown on its own.</p>
+</section>
+<section id="how-it-handles-edge-cases">
+<h2>How it handles edge cases<a class="headerlink" href="#how-it-handles-edge-cases" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Renamed projects.</strong> GitLab follows the rename on the read, and the
+importer writes back using the issue’s numeric <code class="docutils literal notranslate"><span class="pre">project_id</span></code> so the
+<code class="docutils literal notranslate"><span class="pre">PUT</span></code> isn’t affected by the redirect.</p></li>
+<li><p><strong>Moved issues.</strong> If the spreadsheet URL points at a closed
+placeholder that was moved to another project, the importer follows
+the <code class="docutils literal notranslate"><span class="pre">moved_to_id</span></code> chain (up to 5 hops) to the live destination.
+Following a move needs the token to have read access to the
+destination project; if it doesn’t, the row fails with a <code class="docutils literal notranslate"><span class="pre">403</span></code> and
+is listed in the summary (see below).</p></li>
+<li><p><strong>Bare descriptions.</strong> If an issue’s existing Risk Description is
+bare prose with no heading and already matches the spreadsheet, no
+proposal block is added (nothing to propose). Other spreadsheet
+sections on the same row are still appended. This mirrors the
+dashboard’s leading-prose fallback (<a class="reference internal" href="gitlab-setup.html"><span class="doc">GitLab project setup</span></a>).</p></li>
+</ul>
+</section>
+<section id="reading-the-output">
+<h2>Reading the output<a class="headerlink" href="#reading-the-output" title="Link to this heading"></a></h2>
+<p>Every per-row line and error is tagged with the row’s Unique Risk ID
+(or <code class="docutils literal notranslate"><span class="pre">row</span> <span class="pre">N</span></code> matching the spreadsheet row number when there’s no ID
+column), and the run ends with a summary plus an explicit list of any
+rows that didn’t update and why:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>=== Summary ===
+  total: 18
+  no_link: 1
+  ...
+  updated: 11
+  errors: 6
+
+=== Rows that did not update ===
+  - LPY008: move from stp/task-orders#128 → moved_to_id=2620: 403 Forbidden
+  - LPY017: no GitLab Link in spreadsheet
+</pre></div>
+</div>
+<p>Use that list to decide whether to grant the token access to a
+destination project or to update the spreadsheet’s <code class="docutils literal notranslate"><span class="pre">GitLab</span> <span class="pre">Link</span></code> to
+point straight at the moved issue.</p>
+</section>
+<section id="recovering-from-a-bad-run">
+<h2>Recovering from a bad run<a class="headerlink" href="#recovering-from-a-bad-run" title="Link to this heading"></a></h2>
+<p>Before writing anything, the importer appends each issue’s original
+description as a JSON line to the backup file. To restore an issue,
+pull its <code class="docutils literal notranslate"><span class="pre">description</span></code> field out of that file and <code class="docutils literal notranslate"><span class="pre">PUT</span></code> it back
+(or paste it into the issue in GitLab). Because the importer only
+<em>appends</em> marked proposal blocks, the usual “undo” is simply deleting
+the <code class="docutils literal notranslate"><span class="pre">&lt;!--</span> <span class="pre">spreadsheet-import:proposal:...</span> <span class="pre">--&gt;</span></code> block from the issue
+description in GitLab.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="usage.html" class="btn btn-neutral float-left" title="Using the dashboard" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="deployment.html" class="btn btn-neutral float-right" title="Deploying on GitLab" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

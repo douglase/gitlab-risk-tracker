@@ -1,0 +1,244 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Using the dashboard &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Importing from a spreadsheet" href="importer.html" />
+    <link rel="prev" title="GitLab project setup" href="gitlab-setup.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Using the dashboard</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#matrix">5×5 matrix</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#filters">Filters</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#charts">Charts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#risks-table">Risks table</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#columns">Columns</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#unscored-risks">Unscored risks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#csv-export">CSV export</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#edit-pencils">Edit pencils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#version-footer">Version footer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Using the dashboard</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/usage.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="using-the-dashboard">
+<h1>Using the dashboard<a class="headerlink" href="#using-the-dashboard" title="Link to this heading"></a></h1>
+<p>The published dashboard is a single self-contained HTML page. Members
+of the source group can view it; anonymous visitors get a 401.</p>
+<section id="matrix">
+<h2>5×5 matrix<a class="headerlink" href="#matrix" title="Link to this heading"></a></h2>
+<p>The grid is Consequence (Y, top = 5) vs. Likelihood (X, right = 5).
+Cell color reflects the severity tier:</p>
+<ul class="simple">
+<li><p>Green: low (score 1–4)</p></li>
+<li><p>Yellow: medium (score 5–9)</p></li>
+<li><p>Orange: high (score 10–15)</p></li>
+<li><p>Red: critical (score 16–25)</p></li>
+</ul>
+<p>Each cell shows up to four matching issues; click any cell to see the
+full list in the detail table below.</p>
+<p>Closed risks (visible only when the Status filter is set to “Closed”
+or “All”) appear with their titles struck through and dimmed.</p>
+</section>
+<section id="filters">
+<h2>Filters<a class="headerlink" href="#filters" title="Link to this heading"></a></h2>
+<p>All filters apply simultaneously and update the matrix, detail table,
+per-risk score chart, and bottom risks table.</p>
+<ul class="simple">
+<li><p><strong>Status</strong> — Open (default), Closed, or All</p></li>
+<li><p><strong>Subsystem</strong> — multi-select; ⌘/Ctrl-click for multiple</p></li>
+<li><p><strong>Priority</strong> — single select</p></li>
+<li><p><strong>Risk Type</strong> — single select</p></li>
+<li><p><strong>Product</strong> — multi-select; combines all <code class="docutils literal notranslate"><span class="pre">^TO\d</span></code>, <code class="docutils literal notranslate"><span class="pre">^ESC</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">^WCC</span></code> labels in your data into one dropdown. Only appears when at
+least one matching label exists.</p></li>
+<li><p><strong>Labels</strong> — multi-select over <em>every</em> label in use across the open
+risks (subsystem, product, and other labels alike). Only appears when
+the data has labels.</p></li>
+<li><p><strong>Severity tier chips</strong> — click any of low/medium/high/critical to
+toggle filter on/off (multi-select)</p></li>
+</ul>
+<p>Click <strong>Clear filters</strong> to reset all of them at once.</p>
+</section>
+<section id="charts">
+<h2>Charts<a class="headerlink" href="#charts" title="Link to this heading"></a></h2>
+<p>Two trend charts at the top:</p>
+<ol class="arabic simple">
+<li><p><strong>Issues by severity tier (last 90 days)</strong> — aggregate counts per
+tier, day by day, reconstructed from <code class="docutils literal notranslate"><span class="pre">history.ndjson</span></code>.</p></li>
+<li><p><strong>Per-risk score (C×L)</strong> — one line per currently scored risk,
+colored by current tier. Filter-responsive: as you narrow filters,
+non-matching series are hidden.</p></li>
+</ol>
+<p>Both charts label the current value at the right edge so you can read
+the present state without inspecting the rightmost data point.</p>
+</section>
+<section id="risks-table">
+<h2>Risks table<a class="headerlink" href="#risks-table" title="Link to this heading"></a></h2>
+<p>A flat sortable table at the bottom of the page lists every open
+scored risk. Default sort is by score descending. Click any column
+header to sort by that column.</p>
+<section id="columns">
+<h3>Columns<a class="headerlink" href="#columns" title="Link to this heading"></a></h3>
+<p>The Columns dropdown toggles individual columns. Your preference is
+remembered in localStorage. Default-hidden columns: Health, Opened,
+Closed.</p>
+<p>Available columns:</p>
+<ul class="simple">
+<li><p><strong>ID</strong> — links to the GitLab issue</p></li>
+<li><p><strong>Title</strong> — Risk# prefix stripped</p></li>
+<li><p><strong>Status</strong> — Open / Closed pill</p></li>
+<li><p><strong>Health</strong> — GitLab’s HealthStatus value (hidden by default)</p></li>
+<li><p><strong>Opened</strong> / <strong>Closed</strong> — issue dates (hidden by default)</p></li>
+<li><p><strong>C</strong>, <strong>L</strong>, <strong>Score</strong></p></li>
+<li><p><strong>Priority</strong>, <strong>Risk Type</strong></p></li>
+<li><p><strong>Subsystems</strong> — label chips, each a link to the group’s filtered
+issue search</p></li>
+<li><p><strong>Product</strong> — label chips, same link behavior</p></li>
+<li><p><strong>Owner</strong> — assignee name(s) with profile link</p></li>
+<li><p><strong>Risk Description</strong>, <strong>Notes</strong>, <strong>Mitigation Plan</strong> — section
+content from the issue description, rendered markdown shown in a
+modal via <code class="docutils literal notranslate"><span class="pre">see</span> <span class="pre">more</span></code>. The ✎ pencil opens the issue at the heading
+anchor in GitLab for inline editing.</p></li>
+<li><p><strong>Other labels</strong> — anything not matched by subsystem or product
+patterns</p></li>
+</ul>
+</section>
+</section>
+<section id="unscored-risks">
+<h2>Unscored risks<a class="headerlink" href="#unscored-risks" title="Link to this heading"></a></h2>
+<p>Issues that match the risk-label filter but have no valid Consequence ×
+Likelihood score (1–5 on each axis) can’t be placed on the matrix or
+sorted in the main table. They are listed separately in an <strong>Unscored
+risks</strong> section beneath the scored table so the team notices them and
+assigns values in GitLab. The section is collapsed by default — click
+the heading to expand the list — and only appears when at least one
+unscored risk exists. The row count next to the heading stays visible
+either way and reflects the current filters.</p>
+</section>
+<section id="csv-export">
+<h2>CSV export<a class="headerlink" href="#csv-export" title="Link to this heading"></a></h2>
+<p>The <strong>Export CSV</strong> button downloads the current filtered + sorted view
+as a CSV file. The CSV contains the full untruncated section text and
+a <code class="docutils literal notranslate"><span class="pre">GitLab</span> <span class="pre">Link</span></code> column with the issue URL. Excel-readable; UTF-8
+BOM is included so Excel recognizes the encoding.</p>
+</section>
+<section id="edit-pencils">
+<h2>Edit pencils<a class="headerlink" href="#edit-pencils" title="Link to this heading"></a></h2>
+<p>Each section cell has a small ✎ icon that opens the issue at the
+relevant heading anchor in a new tab. Editing happens in GitLab’s
+native UI; the dashboard does not edit issues directly.</p>
+</section>
+<section id="version-footer">
+<h2>Version footer<a class="headerlink" href="#version-footer" title="Link to this heading"></a></h2>
+<p>The page footer shows the short git SHA of the <code class="docutils literal notranslate"><span class="pre">build.py</span></code> /
+template revision that produced the dashboard, alongside links to this
+documentation and the source repository. In a GitLab deployment the SHA
+links to the matching commit (using <code class="docutils literal notranslate"><span class="pre">CI_PROJECT_URL</span></code> and the CI
+commit SHA), so you can always tell exactly which version of the tool
+rendered the page you’re looking at.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="gitlab-setup.html" class="btn btn-neutral float-left" title="GitLab project setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="importer.html" class="btn btn-neutral float-right" title="Importing from a spreadsheet" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,306 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deploying on GitLab &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Contributing" href="contributing.html" />
+    <link rel="prev" title="Importing from a spreadsheet" href="importer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Deploying on GitLab</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#project-setup">Project setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ci-cd-variables">CI/CD variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#protected-branches">Protected branches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#schedule">Schedule</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#manual-trigger">Manual trigger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#behavior-summary">Behavior summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Deploying on GitLab</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/deployment.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="deploying-on-gitlab">
+<h1>Deploying on GitLab<a class="headerlink" href="#deploying-on-gitlab" title="Link to this heading"></a></h1>
+<p>The dashboard is designed to run as a scheduled GitLab CI <code class="docutils literal notranslate"><span class="pre">pages</span></code>
+job that publishes <code class="docutils literal notranslate"><span class="pre">public/index.html</span></code> to
+<a class="reference external" href="https://docs.gitlab.com/user/project/pages/">GitLab Pages</a> and
+pushes the daily snapshot back to a separate <code class="docutils literal notranslate"><span class="pre">risk-history</span></code> branch.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<p>Before you start, confirm with your GitLab administrator (or check
+yourself if you are one):</p>
+<ul class="simple">
+<li><p><strong>A runner is available</strong> to the dashboard project and can reach the
+internet to <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> packages. Without a runner, pipelines
+stay “pending” forever. Settings → CI/CD → Runners shows what is
+available; if the list is empty, enable
+<a class="reference external" href="https://docs.gitlab.com/ci/runners/">instance runners</a> or
+<a class="reference external" href="https://docs.gitlab.com/runner/register/">register a project runner</a>.</p></li>
+<li><p><strong>GitLab Pages is enabled</strong> on the instance
+(<a class="reference external" href="https://docs.gitlab.com/administration/pages/">Pages administration</a>).</p></li>
+<li><p>The source group’s
+<a class="reference external" href="https://docs.gitlab.com/user/work_items/custom_fields/">custom fields</a>
+are configured per <a class="reference internal" href="gitlab-setup.html"><span class="doc">GitLab project setup</span></a>.</p></li>
+</ul>
+</section>
+<section id="project-setup">
+<h2>Project setup<a class="headerlink" href="#project-setup" title="Link to this heading"></a></h2>
+<ol class="arabic">
+<li><p>Create a project to host the dashboard (e.g. <code class="docutils literal notranslate"><span class="pre">stp/risks-dashboard</span></code>).
+This is <strong>not</strong> the group your risks live in — it is a new, separate
+project that holds only this tool.</p></li>
+<li><p>Get this repository’s code onto the new project’s default branch
+(<code class="docutils literal notranslate"><span class="pre">main</span></code>). From a clone of this repository:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># &#39;origin&#39; is this repo on GitHub; add your GitLab project as a</span>
+<span class="c1"># second remote and push main to it.</span>
+git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>gitlab<span class="w"> </span>https://YOUR-GITLAB-HOST/stp/risks-dashboard.git
+git<span class="w"> </span>push<span class="w"> </span>gitlab<span class="w"> </span>main
+</pre></div>
+</div>
+<p>If your GitLab project protects <code class="docutils literal notranslate"><span class="pre">main</span></code> and rejects a direct push,
+push to a feature branch instead and open a merge request:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>push<span class="w"> </span>gitlab<span class="w"> </span>main:import-dashboard
+<span class="c1"># then open a merge request import-dashboard -&gt; main in the UI</span>
+</pre></div>
+</div>
+</li>
+<li><p>Settings → Pages → Access Control: <strong>Only project members</strong>
+(<a class="reference external" href="https://docs.gitlab.com/user/project/pages/pages_access_control/">Pages access control</a>).</p></li>
+</ol>
+</section>
+<section id="ci-cd-variables">
+<h2>CI/CD variables<a class="headerlink" href="#ci-cd-variables" title="Link to this heading"></a></h2>
+<p>Add these under Settings → CI/CD →
+<a class="reference external" href="https://docs.gitlab.com/ci/variables/">Variables</a>. Mark the two
+token variables <strong>Masked</strong> (so they are hidden in job logs) and
+<strong>Protected</strong> (so they are only exposed to protected branches — see
+the next section).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 23.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>What to put in it</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span></code></p></td>
+<td><p>A <a class="reference external" href="https://docs.gitlab.com/user/group/settings/group_access_tokens/">group access token</a>
+on the <strong>source</strong> group</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">read_api</span></code> scope. Used by <code class="docutils literal notranslate"><span class="pre">build.py</span></code> to query work items.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">PUSH_TOKEN</span></code></p></td>
+<td><p>A <a class="reference external" href="https://docs.gitlab.com/user/project/settings/project_access_tokens/">project access token</a>
+on the <strong>dashboard</strong> project</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">write_repository</span></code> scope, <strong>Maintainer</strong> role. Used by the
+pipeline to commit <code class="docutils literal notranslate"><span class="pre">data/history.ndjson</span></code> to the
+<code class="docutils literal notranslate"><span class="pre">risk-history</span></code> branch.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RISK_GROUP_PATH</span></code></p></td>
+<td><p>The full path of your source group, e.g. <code class="docutils literal notranslate"><span class="pre">stp</span></code> or
+<code class="docutils literal notranslate"><span class="pre">my-org/risks</span></code></p></td>
+<td><p>Optional but <strong>set it unless your group is literally named</strong>
+<code class="docutils literal notranslate"><span class="pre">stp</span></code> (the built-in default). Plain variable; not a secret, so
+leave Masked/Protected off.</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>“Masked” and “Protected” interact: a Protected variable is only
+available to pipelines running on a
+<a class="reference external" href="https://docs.gitlab.com/user/project/protected_branches/">protected branch</a>.
+If a pipeline fails with <code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">set</span></code>, the variable is
+Protected but the branch it ran on is not. See Troubleshooting.</p>
+</div>
+</section>
+<section id="protected-branches">
+<h2>Protected branches<a class="headerlink" href="#protected-branches" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">risk-history</span></code> branch is automatically created by the first
+pipeline run. It does not need to be protected. The default branch
+(<code class="docutils literal notranslate"><span class="pre">main</span></code>) should be
+<a class="reference external" href="https://docs.gitlab.com/user/project/protected_branches/">protected</a>;
+the pipeline does <strong>not</strong> push to it.</p>
+</section>
+<section id="schedule">
+<h2>Schedule<a class="headerlink" href="#schedule" title="Link to this heading"></a></h2>
+<p>Create a
+<a class="reference external" href="https://docs.gitlab.com/ci/pipelines/schedules/">pipeline schedule</a>
+under Build → Pipeline schedules → New schedule:</p>
+<ul class="simple">
+<li><p>Description: <code class="docutils literal notranslate"><span class="pre">Nightly</span> <span class="pre">risk</span> <span class="pre">snapshot</span></code></p></li>
+<li><p>Interval pattern (cron): <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">2</span> <span class="pre">*</span> <span class="pre">*</span> <span class="pre">*</span></code> (or your preference)</p></li>
+<li><p>Target branch: <code class="docutils literal notranslate"><span class="pre">main</span></code></p></li>
+<li><p>Activated: on</p></li>
+</ul>
+<p>To test it without waiting until 02:00, save the schedule and click the
+▶ (play) button on its row; that runs it immediately as a <code class="docutils literal notranslate"><span class="pre">schedule</span></code>
+pipeline.</p>
+</section>
+<section id="manual-trigger">
+<h2>Manual trigger<a class="headerlink" href="#manual-trigger" title="Link to this heading"></a></h2>
+<p>Build → Pipelines → <strong>New pipeline</strong> → branch <code class="docutils literal notranslate"><span class="pre">main</span></code> → Run.</p>
+<p>The pipeline:</p>
+<ol class="arabic simple">
+<li><p>Fetches the existing <code class="docutils literal notranslate"><span class="pre">risk-history</span></code> branch (if any) and pulls
+<code class="docutils literal notranslate"><span class="pre">data/history.ndjson</span></code> into the working tree.</p></li>
+<li><p>Runs <code class="docutils literal notranslate"><span class="pre">build.py</span></code>, which queries GitLab GraphQL, appends any
+changed rows to <code class="docutils literal notranslate"><span class="pre">data/history.ndjson</span></code>, and renders
+<code class="docutils literal notranslate"><span class="pre">public/index.html</span></code>.</p></li>
+<li><p>If the history changed, commits and pushes it back to
+<code class="docutils literal notranslate"><span class="pre">risk-history</span></code> using <code class="docutils literal notranslate"><span class="pre">PUSH_TOKEN</span></code>.</p></li>
+<li><p>Publishes <code class="docutils literal notranslate"><span class="pre">public/</span></code> to GitLab Pages via the <code class="docutils literal notranslate"><span class="pre">pages</span></code> job
+artifact.</p></li>
+</ol>
+<p>After the first successful run, find the published URL under
+Deploy → Pages (or Settings → Pages on older versions). Open it in a
+private/incognito window to confirm anonymous visitors are blocked, and
+in a normal window (signed in as a group member) to confirm you can see
+the dashboard.</p>
+</section>
+<section id="behavior-summary">
+<h2>Behavior summary<a class="headerlink" href="#behavior-summary" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>History</strong> lives on <code class="docutils literal notranslate"><span class="pre">risk-history</span></code>, append-only. Daily snapshots
+add only the rows that changed since the last run.</p></li>
+<li><p><strong>Pages</strong> redeploys every pipeline run from the freshly built
+<code class="docutils literal notranslate"><span class="pre">public/index.html</span></code>.</p></li>
+<li><p><strong>Main</strong> stays clean — only <code class="docutils literal notranslate"><span class="pre">.gitlab-ci.yml</span></code>, code, templates,
+tests, docs.</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">set</span></code></dt><dd><p>The variable is marked <strong>Protected</strong> but the pipeline ran on a
+non-protected branch. Either mark the target branch protected or
+uncheck <strong>Protected</strong> on the variable.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">GitLab</span> <span class="pre">rejected</span> <span class="pre">GITLAB_TOKEN</span> <span class="pre">(401</span> <span class="pre">Unauthorized)</span></code></dt><dd><p>The variable <em>is</em> populated, but GitLab won’t accept the token. In
+practice this almost always means the group access token <strong>expired</strong>
+(they have a mandatory expiry date) or was revoked. Create a new
+token with <code class="docutils literal notranslate"><span class="pre">read_api</span></code> scope (Reporter role or higher) on the
+source group, paste it into the <code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span></code> variable, and retry
+the pipeline. The error message prints the token length the job saw,
+which also catches stray-whitespace paste accidents.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">HTTP</span> <span class="pre">Basic:</span> <span class="pre">Access</span> <span class="pre">denied</span></code> on push</dt><dd><p><code class="docutils literal notranslate"><span class="pre">PUSH_TOKEN</span></code> is empty, expired, or its bot user lacks the role
+needed to push to <code class="docutils literal notranslate"><span class="pre">risk-history</span></code>. Re-issue the token with
+<strong>Maintainer</strong> role on the dashboard project.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">Group.workItems</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">available</span> <span class="pre">on</span> <span class="pre">this</span> <span class="pre">GitLab</span> <span class="pre">instance</span></code></dt><dd><p>The instance restricts GraphQL introspection on experimental
+fields. The build now treats this as a warning and proceeds to the
+real query; if the query then fails with a “field doesn’t exist”
+GraphQL error, ask your GitLab admin to enable the
+<code class="docutils literal notranslate"><span class="pre">namespace_level_work_items</span></code> feature flag (or equivalent for
+your version).</p>
+</dd>
+</dl>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="importer.html" class="btn btn-neutral float-left" title="Importing from a spreadsheet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="contributing.html" class="btn btn-neutral float-right" title="Contributing" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

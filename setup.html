@@ -1,0 +1,217 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local setup &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="GitLab project setup" href="gitlab-setup.html" />
+    <link rel="prev" title="Example dashboard" href="preview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Local setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install">Install</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dry-run">Dry run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-tests">Running the tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Local setup</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/setup.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="local-setup">
+<h1>Local setup<a class="headerlink" href="#local-setup" title="Link to this heading"></a></h1>
+<p>This page covers running <code class="docutils literal notranslate"><span class="pre">build.py</span></code> on your own machine to preview
+the dashboard. To run it as an automated GitLab pipeline instead, see
+<a class="reference internal" href="deployment.html"><span class="doc">Deploying on GitLab</span></a>.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Python 3.10 or newer (continuous integration runs on 3.12).</p></li>
+<li><p>A GitLab access token with <code class="docutils literal notranslate"><span class="pre">read_api</span></code> scope that can read the
+source group’s issues. A
+<a class="reference external" href="https://docs.gitlab.com/user/profile/personal_access_tokens/">personal access token</a>
+is easiest for local use; a
+<a class="reference external" href="https://docs.gitlab.com/user/group/settings/group_access_tokens/">group access token</a>
+is better for the pipeline.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">git</span></code> installed if you intend to push changes.</p></li>
+</ul>
+</section>
+<section id="install">
+<h2>Install<a class="headerlink" href="#install" title="Link to this heading"></a></h2>
+<p>A dedicated environment is recommended. Using
+<a class="reference external" href="https://docs.conda.io/">conda</a> (or the faster, drop-in
+<a class="reference external" href="https://mamba.readthedocs.io/">mamba</a> — swap <code class="docutils literal notranslate"><span class="pre">conda</span></code> for <code class="docutils literal notranslate"><span class="pre">mamba</span></code>
+in any command below):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/douglase/gitlab-risk-tracker.git
+<span class="nb">cd</span><span class="w"> </span>gitlab-risk-tracker
+conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>risk-tracker<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.12
+conda<span class="w"> </span>activate<span class="w"> </span>risk-tracker
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</pre></div>
+</div>
+<p>The runtime dependencies are pure-Python wheels, so <code class="docutils literal notranslate"><span class="pre">pip</span></code> inside the
+conda environment is the simplest way to install them. If you prefer to
+pull everything from conda-forge instead, the equivalent is
+<code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">install</span> <span class="pre">-c</span> <span class="pre">conda-forge</span> <span class="pre">requests</span> <span class="pre">jinja2</span> <span class="pre">markdown</span> <span class="pre">nh3</span></code>.</p>
+</section>
+<section id="dry-run">
+<h2>Dry run<a class="headerlink" href="#dry-run" title="Link to this heading"></a></h2>
+<p>Set the environment variables below, then run <code class="docutils literal notranslate"><span class="pre">build.py</span></code> directly.
+It writes <code class="docutils literal notranslate"><span class="pre">public/index.html</span></code> and appends to <code class="docutils literal notranslate"><span class="pre">data/history.ndjson</span></code>
+in your working copy; it does <strong>not</strong> commit or push anything.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GITLAB_TOKEN</span><span class="o">=</span>&lt;your-token&gt;
+<span class="nb">export</span><span class="w"> </span><span class="nv">CI_SERVER_URL</span><span class="o">=</span>https://gitlab.example.com<span class="w">   </span><span class="c1"># your GitLab host</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">RISK_GROUP_PATH</span><span class="o">=</span>stp<span class="w">                         </span><span class="c1"># change to your group</span>
+python<span class="w"> </span>build.py
+xdg-open<span class="w"> </span>public/index.html<span class="w">        </span><span class="c1"># or: open public/index.html (macOS)</span>
+</pre></div>
+</div>
+<p>The examples throughout this documentation use <code class="docutils literal notranslate"><span class="pre">stp</span></code> as the group
+name. <strong>Wherever you see</strong> <code class="docutils literal notranslate"><span class="pre">stp</span></code><strong>, substitute the full path of your
+own group</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">platform/security</span></code> or <code class="docutils literal notranslate"><span class="pre">my-org/risks</span></code>).</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GITLAB_TOKEN</span></code></p></td>
+<td><p>Access token with <code class="docutils literal notranslate"><span class="pre">read_api</span></code> scope. <strong>Required.</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CI_SERVER_URL</span></code></p></td>
+<td><p>Base URL of your GitLab instance, e.g.
+<code class="docutils literal notranslate"><span class="pre">https://gitlab.example.com</span></code>. (Inside a GitLab pipeline this is
+set automatically; you only set it for local runs. <code class="docutils literal notranslate"><span class="pre">GITLAB_URL</span></code>
+is accepted as an alias.)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RISK_GROUP_PATH</span></code></p></td>
+<td><p>Full path of the group to scan, e.g. <code class="docutils literal notranslate"><span class="pre">stp</span></code> or
+<code class="docutils literal notranslate"><span class="pre">my-org/risks</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">stp</span></code> if unset, so set it unless
+your group really is named <code class="docutils literal notranslate"><span class="pre">stp</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RISK_LABEL_FILTER</span></code></p></td>
+<td><p>Substring (case-insensitive) that must appear in at least one of
+an issue’s labels for it to be included on the dashboard.
+Defaults to <code class="docutils literal notranslate"><span class="pre">&quot;risk&quot;</span></code> so general bug-reports / feature-requests
+living alongside your risks don’t clutter the matrix. Set to the
+empty string to disable the filter and include every work item.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="running-the-tests">
+<h2>Running the tests<a class="headerlink" href="#running-the-tests" title="Link to this heading"></a></h2>
+<p>Tests are self-contained (no GitLab connection required) and assert on
+matrix counts, history append semantics, section parsing, and the
+generated HTML.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>tests/test_build.py<span class="w">            </span><span class="c1"># dashboard build pipeline</span>
+python<span class="w"> </span>tests/test_import_smartsheet.py<span class="w">  </span><span class="c1"># spreadsheet importer</span>
+</pre></div>
+</div>
+<p>Both run under <code class="docutils literal notranslate"><span class="pre">pytest</span></code> as well (<code class="docutils literal notranslate"><span class="pre">pytest</span> <span class="pre">tests/</span></code>) if you prefer.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="preview.html" class="btn btn-neutral float-left" title="Example dashboard" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gitlab-setup.html" class="btn btn-neutral float-right" title="GitLab project setup" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
