@@ -158,6 +158,15 @@ Troubleshooting
    non-protected branch. Either mark the target branch protected or
    uncheck **Protected** on the variable.
 
+``GitLab rejected GITLAB_TOKEN (401 Unauthorized)``
+   The variable *is* populated, but GitLab won't accept the token. In
+   practice this almost always means the group access token **expired**
+   (they have a mandatory expiry date) or was revoked. Create a new
+   token with ``read_api`` scope (Reporter role or higher) on the
+   source group, paste it into the ``GITLAB_TOKEN`` variable, and retry
+   the pipeline. The error message prints the token length the job saw,
+   which also catches stray-whitespace paste accidents.
+
 ``HTTP Basic: Access denied`` on push
    ``PUSH_TOKEN`` is empty, expired, or its bot user lacks the role
    needed to push to ``risk-history``. Re-issue the token with
