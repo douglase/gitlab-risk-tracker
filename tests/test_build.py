@@ -566,6 +566,32 @@ def _set_state(state: str):
     return mutate
 
 
+def test_graphql_401_exits_with_actionable_message() -> None:
+    """A 401 from GitLab (expired/revoked token) must exit with a clear
+    diagnosis instead of an HTTPError traceback — this is the most common
+    production failure once a group access token hits its expiry date."""
+    class _Resp401:
+        status_code = 401
+        def raise_for_status(self):
+            raise AssertionError("401 branch should exit before raise_for_status")
+        def json(self):
+            return {}
+
+    env = {"GITLAB_TOKEN": "expired-token-value", "CI_SERVER_URL": "https://gl.example.com"}
+    with patch.dict(os.environ, env), \
+         patch.object(build.requests, "post", return_value=_Resp401()):
+        try:
+            build.graphql("query {}", {})
+            raise AssertionError("expected SystemExit on 401")
+        except SystemExit as e:
+            msg = str(e)
+            assert "401" in msg
+            assert "EXPIRED" in msg, "message should point at token expiry"
+            assert "read_api" in msg, "message should say how to fix it"
+            assert str(len("expired-token-value")) in msg, \
+                "message should include the observed token length"
+
+
 def test_render_markdown_sanitization() -> None:
     """User-controlled issue descriptions get HTML-injected into the
     modal via innerHTML. render_markdown() must strip script tags,
@@ -746,6 +772,7 @@ def test_risk_label_filter_case_insensitive_substring() -> None:
 if __name__ == "__main__":
     import tempfile
     test_risk_label_filter_case_insensitive_substring()
+    test_graphql_401_exits_with_actionable_message()
     test_render_markdown_sanitization()
     test_parse_sections()
     test_parse_sections_bare_body_fallback()

@@ -234,6 +234,20 @@ def graphql(query: str, variables: dict) -> dict:
         headers={"Authorization": f"Bearer {token}"},
         timeout=60,
     )
+    if resp.status_code == 401:
+        sys.exit(
+            "GitLab rejected GITLAB_TOKEN (401 Unauthorized).\n"
+            "The CI/CD variable is set (the empty-token guard passed) but the\n"
+            "token itself is no longer valid. Most common causes:\n"
+            "  - the token has EXPIRED — group/project access tokens have an\n"
+            "    expiry date; check the source group's Settings → Access tokens\n"
+            "  - the token was revoked, or its bot user was removed from the group\n"
+            "  - the value picked up stray whitespace/newline when pasted\n"
+            f"Token length as seen by this job: {len(token)} chars.\n"
+            "Fix: create a new group access token with read_api scope (Reporter\n"
+            "role or higher) on the source group, update the GITLAB_TOKEN CI/CD\n"
+            "variable on the dashboard project, and retry the pipeline."
+        )
     resp.raise_for_status()
     payload = resp.json()
     if "errors" in payload:

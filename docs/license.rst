@@ -26,6 +26,9 @@ Third-party dependencies
      - BSD-3-Clause
    * - ``nh3``
      - MIT — HTML sanitizer used on rendered issue-description markdown
+   * - ``openpyxl`` (importer only)
+     - MIT — reads ``.xlsx`` exports in ``scripts/import_smartsheet.py``;
+       not required by the dashboard build (see :doc:`importer`)
    * - ``sphinx`` (docs only)
      - BSD-2-Clause
    * - ``sphinx_rtd_theme`` (docs only)

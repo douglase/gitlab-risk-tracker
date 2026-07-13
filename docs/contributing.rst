@@ -8,7 +8,9 @@ Workflow
 
 1. Open an issue describing the change.
 2. Branch from ``main``; make the change locally.
-3. Run the test suite: ``python tests/test_build.py``.
+3. Run the test suites: ``python tests/test_build.py`` and
+   ``python tests/test_import_smartsheet.py`` (or ``pytest tests/`` to
+   run both).
 4. Push a branch and open a pull request.
 
 Coding conventions
@@ -25,10 +27,17 @@ Coding conventions
 Tests
 -----
 
-The test suite mocks the GitLab GraphQL responses, exercises the full
-``main()`` pipeline, and asserts on the rendered HTML, history append
-semantics, and section parsing. Sample risks are based on examples
-from the NASA Risk Management Handbook (NASA/SP-2011-3422, Rev. A).
+``tests/test_build.py`` mocks the GitLab GraphQL responses, exercises
+the full ``main()`` pipeline, and asserts on the rendered HTML, history
+append semantics, and section parsing. Sample risks are based on
+examples from the NASA Risk Management Handbook (NASA/SP-2011-3422,
+Rev. A).
+
+``tests/test_import_smartsheet.py`` covers the spreadsheet importer
+(see :doc:`importer`): the non-destructive proposal-block behavior,
+idempotent re-runs, heading-synonym matching, the bare-body fallback,
+and the per-row failure diagnostics. Its helpers are pure-Python, so
+the suite runs without a GitLab connection or an ``.xlsx`` file.
 
 Continuous integration
 ----------------------
@@ -44,11 +53,12 @@ workflows only support development of the tool on GitHub):
    * - Workflow
      - Purpose
    * - ``.github/workflows/test.yml``
-     - Runs ``python tests/test_build.py`` on every push and pull
-       request. Exercises the full ``build.py`` pipeline against
-       mocked GitLab data and asserts on matrix counts, history
-       append semantics, section parsing, markdown sanitization, and
-       the rendered HTML.
+     - Runs both ``python tests/test_build.py`` and
+       ``python tests/test_import_smartsheet.py`` on every push and
+       pull request. Exercises the full ``build.py`` pipeline against
+       mocked GitLab data (matrix counts, history append semantics,
+       section parsing, markdown sanitization, the rendered HTML) and
+       the importer's pure-Python helpers.
    * - ``.github/workflows/scancode.yml``
      - License-scan gate. Runs
        `scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_

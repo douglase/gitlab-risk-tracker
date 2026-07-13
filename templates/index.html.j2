@@ -72,6 +72,8 @@
   .trend .risk-label:hover { text-decoration: underline; }
   .hidden { display: none !important; }
   .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
+  .unscored-details > summary { cursor: pointer; list-style: revert; }
+  .unscored-details > summary:hover h2 { color: #1565c0; }
   .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
   .table-toolbar details summary { cursor: pointer; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; list-style: none; }
   .table-toolbar details summary::-webkit-details-marker { display: none; }
@@ -280,28 +282,32 @@
 
 {% if unscored_table_json and unscored_table_json != '[]' %}
 <section class="risks-section">
-  <h2>Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
-  <p class="muted" style="margin: 0 0 .75rem; font-size: 12px;">
-    Risks without both a Consequence and a Likelihood don't fit on the
-    matrix. Score them in GitLab to bring them in.
-  </p>
-  <div class="table-wrap">
-    <table class="risks" id="unscored-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Title</th>
-          <th>Status</th>
-          <th>Priority</th>
-          <th>Owner</th>
-          <th>Subsystems</th>
-          <th>Labels</th>
-          <th>Opened</th>
-        </tr>
-      </thead>
-      <tbody id="unscored-tbody"></tbody>
-    </table>
-  </div>
+  <details class="unscored-details">
+    <summary>
+      <h2 style="display: inline; margin: 0;">Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
+    </summary>
+    <p class="muted" style="margin: .5rem 0 .75rem; font-size: 12px;">
+      Risks without both a Consequence and a Likelihood don't fit on the
+      matrix. Score them in GitLab to bring them in.
+    </p>
+    <div class="table-wrap">
+      <table class="risks" id="unscored-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Owner</th>
+            <th>Subsystems</th>
+            <th>Labels</th>
+            <th>Opened</th>
+          </tr>
+        </thead>
+        <tbody id="unscored-tbody"></tbody>
+      </table>
+    </div>
+  </details>
 </section>
 {% endif %}
 

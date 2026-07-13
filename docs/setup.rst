@@ -8,7 +8,7 @@ the dashboard. To run it as an automated GitLab pipeline instead, see
 Prerequisites
 -------------
 
-- Python 3.12+
+- Python 3.10 or newer (continuous integration runs on 3.12).
 - A GitLab access token with ``read_api`` scope that can read the
   source group's issues. A
   `personal access token <https://docs.gitlab.com/user/profile/personal_access_tokens/>`_
@@ -20,12 +20,23 @@ Prerequisites
 Install
 -------
 
+A dedicated environment is recommended. Using
+`conda <https://docs.conda.io/>`_ (or the faster, drop-in
+`mamba <https://mamba.readthedocs.io/>`_ — swap ``conda`` for ``mamba``
+in any command below):
+
 .. code-block:: bash
 
    git clone https://github.com/douglase/gitlab-risk-tracker.git
    cd gitlab-risk-tracker
-   python -m venv .venv && source .venv/bin/activate   # recommended
+   conda create -n risk-tracker python=3.12
+   conda activate risk-tracker
    pip install -r requirements.txt
+
+The runtime dependencies are pure-Python wheels, so ``pip`` inside the
+conda environment is the simplest way to install them. If you prefer to
+pull everything from conda-forge instead, the equivalent is
+``conda install -c conda-forge requests jinja2 markdown nh3``.
 
 Dry run
 -------
@@ -79,4 +90,7 @@ generated HTML.
 
 .. code-block:: bash
 
-   python tests/test_build.py
+   python tests/test_build.py            # dashboard build pipeline
+   python tests/test_import_smartsheet.py  # spreadsheet importer
+
+Both run under ``pytest`` as well (``pytest tests/``) if you prefer.

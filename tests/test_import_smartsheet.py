@@ -77,6 +77,75 @@ def test_differ_appends_proposal_existing_preserved() -> None:
         "proposal not appended after existing section"
 
 
+def test_imported_section_marked_when_existing_section_present() -> None:
+    """When the issue already has a section with the same name, the
+    imported copy is preceded by a horizontal rule and a PLAIN-TEXT bold
+    label (NOT a heading), so it stays inside the existing section and
+    flows through to the dashboard rather than being stranded under a
+    non-canonical subheading."""
+    existing = "## Mitigation Plan\n\nOld plan body.\n"
+    out = imp.merge_sections(
+        existing, {"mitigation_plan": "New plan from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    # Horizontal rule + plain-text bold label.
+    assert "\n---\n" in out, "missing horizontal rule before imported content"
+    assert "**Mitigation Plan _(imported from spreadsheet)_**" in out, \
+        "imported content not labelled"
+    # The label must NOT be a markdown heading — a heading would end the
+    # existing section and hide the import from the dashboard.
+    assert "### Mitigation Plan" not in out, \
+        "imported content should be plain text, not a heading"
+    # The issue's own section is untouched and still a plain canonical heading.
+    assert "## Mitigation Plan\n\nOld plan body." in out
+
+
+def test_imported_content_flows_to_dashboard_section() -> None:
+    """End-to-end: after importing into an issue that already has the
+    section, build.parse_sections() (the dashboard parser) surfaces the
+    imported content as part of that section — the bug the plain-text
+    label fixes. Skipped if build.py's runtime deps aren't installed
+    (this suite otherwise needs none)."""
+    sys.path.insert(0, str(ROOT))
+    try:
+        import build  # noqa: E402  (needs markdown/nh3/jinja2/requests)
+    except ImportError as e:
+        print(f"  (skipping dashboard-integration check: {e})")
+        return
+
+    existing = "# Mitigation Plan\n\nOld plan.\n"
+    merged = imp.merge_sections(
+        existing, {"mitigation_plan": "New plan from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    parsed = build.parse_sections(merged)
+    assert "mitigation_plan" in parsed
+    rendered = build.plain_text(build.render_markdown(parsed["mitigation_plan"]))
+    assert "New plan from sheet." in rendered, (
+        "imported content did not flow through to the dashboard section:\n"
+        f"{rendered!r}"
+    )
+
+
+def test_new_section_uses_plain_heading_no_rule() -> None:
+    """When the issue has NO section with this name, the proposal uses a
+    plain '### <name>' heading with no rule — there's nothing to
+    disambiguate it from."""
+    existing = "## Risk Description\n\nA risk.\n"
+    out = imp.merge_sections(
+        existing, {"notes": "Fresh notes from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    assert "### Notes" in out
+    assert "_(imported from spreadsheet)_" not in out, \
+        "brand-new section should not carry the imported tag"
+    # No diff block either (no prior content for this section).
+    assert "```diff" not in out
+    # The only '---' that could appear would be from the rule; assert the
+    # rule is absent for a brand-new section.
+    assert "\n---\n" not in out, "unexpected horizontal rule for a new section"
+
+
 def test_bare_body_matches_spreadsheet_risk_description() -> None:
     """A description with no canonical heading but whose entire body
     matches the spreadsheet's Risk Description should NOT trigger a
@@ -98,9 +167,10 @@ def test_bare_body_matches_spreadsheet_risk_description() -> None:
 
 
 def test_bare_body_differs_still_proposes() -> None:
-    """Bare body that DOESN'T match the spreadsheet still gets a
-    proposal block — the bare prose is the existing content, and the
-    diff in the proposal shows what changed."""
+    """Bare body that DOESN'T match the spreadsheet still gets a proposal
+    block with the new content. No inline diff is emitted — the import is
+    absorbed into the (bare) section and the diff would only clutter the
+    dashboard."""
     existing = "Old free-form text."
     out = imp.merge_sections(
         existing,
@@ -110,11 +180,9 @@ def test_bare_body_differs_still_proposes() -> None:
     )
     assert "spreadsheet-import:proposal:risk_description" in out
     assert "New canonical text from the spreadsheet." in out
-    # The diff block should be present (since "existing_body" is now the
-    # bare prose, not "").
-    assert "```diff" in out, \
-        "expected a diff block comparing bare body to spreadsheet text"
-    assert "-Old free-form text." in out
+    # No diff block, no <details> scaffolding.
+    assert "```diff" not in out, "diff block should no longer be emitted"
+    assert "<details>" not in out, "no <details> scaffolding expected"
 
 
 def test_bare_body_only_blocks_risk_description_fallback() -> None:
@@ -158,6 +226,89 @@ def test_bare_body_matches_rd_other_sections_still_proposed() -> None:
     assert "Order an oversize-fixture cart." in out
     # And the original bare body is preserved verbatim at the top.
     assert out.startswith(existing)
+
+
+# ---------------------------------------------------------------------------
+# Addendum placement (proposal goes right after its matching section)
+# ---------------------------------------------------------------------------
+
+def test_proposal_inserted_after_matching_section_not_at_end() -> None:
+    """A differing section's proposal block is inserted directly after the
+    matching existing section — before the next heading — rather than
+    dumped at the bottom of the description separated from its section."""
+    existing = (
+        "# Risk Description\n\nExisting risk.\n\n"
+        "# Mitigation Plan\n\nOld plan.\n\n"
+        "# Notes\n\nOld notes.\n\n"
+        "# History\n\nPrior history that must stay last.\n"
+    )
+    out = imp.merge_sections(
+        existing,
+        {
+            "risk_description": "Existing risk.",          # match → no proposal
+            "notes": "New notes from sheet.",              # differ → after Notes
+            "mitigation_plan": "New plan from sheet.",     # differ → after Mitigation
+        },
+        today="2026-06-04",
+        source_id="ESC036",
+    )
+
+    # The Mitigation addendum sits between the Mitigation section and Notes.
+    mit_block = out.index("proposal:mitigation_plan:esc036")
+    notes_heading = out.index("# Notes")
+    mit_heading = out.index("# Mitigation Plan")
+    assert mit_heading < mit_block < notes_heading, (
+        "mitigation addendum should sit after the Mitigation section and "
+        "before the Notes heading"
+    )
+
+    # The Notes addendum sits between the Notes section and History.
+    notes_block = out.index("proposal:notes:esc036")
+    history_heading = out.index("# History")
+    assert notes_heading < notes_block < history_heading, (
+        "notes addendum should sit after the Notes section and before the "
+        "History heading"
+    )
+
+    # History (a non-canonical trailing section) stays last and untouched.
+    assert history_heading > notes_block
+    assert "Prior history that must stay last." in out
+    # No risk_description proposal (it matched).
+    assert "proposal:risk_description" not in out
+    # Re-running with the same data is byte-for-byte stable.
+    again = imp.merge_sections(
+        out,
+        {
+            "risk_description": "Existing risk.",
+            "notes": "New notes from sheet.",
+            "mitigation_plan": "New plan from sheet.",
+        },
+        today="2026-06-04",
+        source_id="ESC036",
+    )
+    assert again == out, "inline-insertion result is not idempotent"
+
+
+def test_differing_risk_description_addendum_follows_existing_rd() -> None:
+    """The user's report: a differing Risk Description must NOT produce a
+    second Risk Description at the bottom separated by other sections —
+    its addendum belongs right after the existing Risk Description."""
+    existing = (
+        "# Risk Description\n\nExisting statement.\n\n"
+        "# Mitigation Plan\n\nA plan.\n\n"
+        "# Notes\n\nSome notes.\n"
+    )
+    out = imp.merge_sections(
+        existing, {"risk_description": "Updated statement from sheet."},
+        today="2026-06-04", source_id="ESC036",
+    )
+    rd_heading = out.index("# Risk Description")
+    rd_block = out.index("proposal:risk_description:esc036")
+    mit_heading = out.index("# Mitigation Plan")
+    assert rd_heading < rd_block < mit_heading, (
+        "Risk Description addendum should sit between the existing Risk "
+        "Description and the Mitigation Plan heading"
+    )
 
 
 def test_missing_section_appends_proposal_not_canonical_heading() -> None:
@@ -698,6 +849,86 @@ def test_main_tags_failures_with_unique_risk_id(tmp_path=None, capsys=None) -> N
         "LPY099 (no GitLab Link) should appear in the failure summary"
     # Exit non-zero because there were errors.
     assert rc != 0, "main() should return non-zero when errors > 0"
+
+
+def test_main_print_markdown_emits_clean_pasteable_description() -> None:
+    """--print-markdown prints the full proposed description verbatim
+    (pasteable into GitLab), never PUTs, and delimits issues with an
+    HTML comment (invisible in GitLab's rendered preview)."""
+    import io
+    import sys as _sys
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+    import requests
+
+    rows = [
+        {"GitLab Link": "https://gl.example.com/p/-/issues/2",
+         "Unique Risk ID": "LPY016",
+         "Risk Description": "Bare risk statement.",
+         "Action Plan/ Notes": "Verify cart load every shift."},
+    ]
+
+    class _FakeResp:
+        def __init__(self, status, body):
+            self.status_code = status
+            self._body = body
+        def json(self): return self._body
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                err = requests.HTTPError(f"{self.status_code} error")
+                err.response = self
+                raise err
+
+    def fake_get(url, timeout=30):
+        if "/issues/2" in url and "projects" in url:
+            return _FakeResp(200, {
+                "iid": 2, "project_id": 100,
+                "web_url": "https://gl.example.com/p/-/issues/2",
+                "description": "Bare risk statement.",
+            })
+        return _FakeResp(404, {})
+
+    def fake_put(url, json=None, timeout=30):
+        raise AssertionError("--print-markdown must never PUT")
+
+    with tempfile.TemporaryDirectory() as d:
+        xlsx_path = Path(d) / "Risk Register.xlsx"
+        xlsx_path.write_bytes(b"")
+        backup_path = Path(d) / "backup.jsonl"
+        # Note: deliberately NOT passing --dry-run; --print-markdown must
+        # imply it on its own.
+        argv = ["import_smartsheet.py", "--xlsx", str(xlsx_path),
+                "--token", "fake-token", "--print-markdown",
+                "--backup", str(backup_path)]
+        buf_out, buf_err = io.StringIO(), io.StringIO()
+        with patch.object(imp, "read_xlsx", return_value=rows), \
+             patch.object(imp, "requests") as mock_requests, \
+             patch.object(_sys, "argv", argv), \
+             patch.object(_sys, "stdout", buf_out), \
+             patch.object(_sys, "stderr", buf_err):
+            sess = mock_requests.Session.return_value
+            sess.headers = {}
+            sess.get.side_effect = fake_get
+            sess.put.side_effect = fake_put
+            mock_requests.HTTPError = requests.HTTPError
+            rc = imp.main()
+            put_calls = sess.put.call_count
+
+    out = buf_out.getvalue()
+
+    # Never wrote.
+    assert put_calls == 0, "--print-markdown issued a PUT"
+    assert rc == 0
+    # The clean proposal markdown is present, not a unified diff.
+    assert "### Notes" in out
+    assert "Verify cart load every shift." in out
+    assert "--- current" not in out and "+++ new" not in out, \
+        "print-markdown should not emit a unified diff"
+    assert "@@" not in out, "print-markdown should not emit diff hunk headers"
+    # Issue delimiter is an HTML comment (invisible in GitLab preview).
+    assert "<!-- ===== LPY016 →" in out, \
+        "missing HTML-comment issue delimiter"
 
 
 # ---------------------------------------------------------------------------
