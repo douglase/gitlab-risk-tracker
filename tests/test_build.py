@@ -352,9 +352,22 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     assert 'id="risks-table"' in html
     assert 'id="export-csv"' in html
     assert 'id="col-toggles"' in html
+    # Top-N display limiter with the three fixed options.
+    assert '<select id="top-n"' in html
+    for n in (5, 10, 25):
+        assert f'<option value="{n}">Top {n}</option>' in html, \
+            f"Top {n} option missing"
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
+    # Movement, Subsystem breakdown, and Unscored sections are wrapped in
+    # default-collapsed <details> (no `open` attribute).
+    import re as _re
+    collapse_tags = _re.findall(r'<details class="section-collapse"[^>]*>', html)
+    assert len(collapse_tags) >= 3, \
+        f"expected >=3 collapsed sections, found {len(collapse_tags)}"
+    assert all("open" not in t for t in collapse_tags), \
+        f"a section-collapse details is unexpectedly open: {collapse_tags}"
 
     # History: only changed items append new rows. Backdated trail had
     # #1 at C5xL4 already (same as current), #2 at C4xL5 (same as current),
