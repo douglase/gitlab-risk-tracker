@@ -56,12 +56,33 @@ Two trend charts at the top:
 Both charts label the current value at the right edge so you can read
 the present state without inspecting the rightmost data point.
 
+Movement and Subsystem breakdown
+--------------------------------
+
+Two summary sections sit between the charts and the risks table, both
+**collapsed by default** — click a heading to expand it:
+
+- **Movement (last 30 days)** — four cards listing risks that escalated,
+  de-escalated, were newly added, or were closed in the last 30 days
+  (up to 10 each), reconstructed from the history log.
+- **Subsystem breakdown (label occurrences)** — a bar per subsystem
+  label counting open issues carrying it. An issue with two subsystem
+  labels counts once under each.
+
 Risks table
 -----------
 
 A flat sortable table at the bottom of the page lists every open
 scored risk. Default sort is by score descending. Click any column
 header to sort by that column.
+
+The **Show** selector in the table toolbar limits the view to the
+**Top 5**, **Top 10**, or **Top 25** risks (default: All). "Top" always
+means the highest-scored risks after the active filters — regardless of
+severity tier and regardless of how the table is currently sorted; the
+column sort only changes the display order of those N rows. The row
+count in the heading shows ``N of M`` when a limit is active, and the
+CSV export respects the same limit.
 
 Columns
 ^^^^^^^

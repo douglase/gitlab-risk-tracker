@@ -72,8 +72,9 @@
   .trend .risk-label:hover { text-decoration: underline; }
   .hidden { display: none !important; }
   .risks-section h2 .row-count { color: var(--muted); font-weight: normal; }
-  .unscored-details > summary { cursor: pointer; list-style: revert; }
-  .unscored-details > summary:hover h2 { color: #1565c0; }
+  details.section-collapse > summary { cursor: pointer; list-style: revert; }
+  details.section-collapse > summary:hover h2 { color: #1565c0; }
+  details.section-collapse > summary h2 { display: inline; margin: 0; }
   .table-toolbar { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: .75rem; flex-wrap: wrap; }
   .table-toolbar details summary { cursor: pointer; padding: .35rem .75rem; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; list-style: none; }
   .table-toolbar details summary::-webkit-details-marker { display: none; }
@@ -225,7 +226,10 @@
 </section>
 
 <section>
-  <h2>Movement (last 30 days)</h2>
+  <details class="section-collapse">
+  <summary>
+    <h2>Movement (last 30 days)</h2>
+  </summary>
   <div class="movement-grid">
     <div class="card">
       <h3>↑ Escalated ({{ movement.escalated | length }})</h3>
@@ -244,10 +248,14 @@
       <ul>{% for r in movement.closed[:10] %}<li><a href="{{ r.web_url }}" target="_blank">#{{ r.iid }}</a></li>{% endfor %}</ul>
     </div>
   </div>
+  </details>
 </section>
 
 <section>
-  <h2>Subsystem breakdown (label occurrences)</h2>
+  <details class="section-collapse">
+  <summary>
+    <h2>Subsystem breakdown (label occurrences)</h2>
+  </summary>
   {% set max_count = subsystem_counts.values() | max | default(1) %}
   {% for s in subsystems %}
     {% set n = subsystem_counts.get(s, 0) %}
@@ -261,6 +269,7 @@
       <span class="n">{{ n }}</span>
     </div>
   {% endfor %}
+  </details>
 </section>
 
 <section class="risks-section">
@@ -270,6 +279,14 @@
       <summary>Columns ▾</summary>
       <div class="col-toggles" id="col-toggles"></div>
     </details>
+    <label style="font-size: 12px;">Show
+      <select id="top-n" title="Limit to the N highest-scored risks (regardless of severity tier)">
+        <option value="" selected>All</option>
+        <option value="5">Top 5</option>
+        <option value="10">Top 10</option>
+        <option value="25">Top 25</option>
+      </select>
+    </label>
     <button type="button" id="export-csv">Export CSV</button>
   </div>
   <div class="table-wrap">
@@ -282,9 +299,9 @@
 
 {% if unscored_table_json and unscored_table_json != '[]' %}
 <section class="risks-section">
-  <details class="unscored-details">
+  <details class="section-collapse">
     <summary>
-      <h2 style="display: inline; margin: 0;">Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
+      <h2>Unscored risks (<span class="row-count" id="unscored-count">0</span>)</h2>
     </summary>
     <p class="muted" style="margin: .5rem 0 .75rem; font-size: 12px;">
       Risks without both a Consequence and a Likelihood don't fit on the
@@ -856,11 +873,27 @@ function renderCell(row, col) {
   }
 }
 
-function renderTable() {
+// Rows for the table / CSV: filters, then the optional Top-N cut, then the
+// user's current column sort. Top N always means the N *highest-scored*
+// risks (score, then C, then L) regardless of severity tier or how the
+// table is currently sorted — the sort only affects display order.
+function visibleTableRows() {
   const f = currentFilter();
-  const filtered = risks.filter(r => matchesFilter(r, f));
-  const sorted = sortRows(filtered);
-  document.getElementById('row-count').textContent = sorted.length;
+  let filtered = risks.filter(r => matchesFilter(r, f));
+  const total = filtered.length;
+  const n = parseInt(document.getElementById('top-n').value, 10);
+  if (!isNaN(n) && n > 0) {
+    filtered = [...filtered].sort((a, b) =>
+      b.score - a.score || b.consequence - a.consequence || b.likelihood - a.likelihood
+    ).slice(0, n);
+  }
+  return { rows: sortRows(filtered), total };
+}
+
+function renderTable() {
+  const { rows: sorted, total } = visibleTableRows();
+  document.getElementById('row-count').textContent =
+    sorted.length < total ? `${sorted.length} of ${total}` : sorted.length;
   renderThead();
   const cols = COLUMNS.filter(c => isColVisible(c));
   const tbody = document.getElementById('risks-tbody');
@@ -909,9 +942,7 @@ function csvValue(row, col) {
   return row[col.key] != null ? row[col.key] : '';
 }
 function exportCsv() {
-  const f = currentFilter();
-  const filtered = risks.filter(r => matchesFilter(r, f));
-  const sorted = sortRows(filtered);
+  const { rows: sorted } = visibleTableRows();
   const cols = COLUMNS.filter(c => isColVisible(c));
   // Always include a GitLab Link column at the end (full URL).
   const header = cols.map(c => csvCell(c.header)).concat(['GitLab Link']).join(',');
@@ -928,6 +959,7 @@ function exportCsv() {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
 }
 document.getElementById('export-csv').addEventListener('click', exportCsv);
+document.getElementById('top-n').addEventListener('change', renderTable);
 
 document.querySelectorAll('.filters select').forEach(el => el.addEventListener('change', applyFilters));
 document.querySelectorAll('.legend-chip').forEach(btn => {
