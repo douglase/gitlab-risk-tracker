@@ -138,6 +138,18 @@ Each section cell has a small ✎ icon that opens the issue at the
 relevant heading anchor in a new tab. Editing happens in GitLab's
 native UI; the dashboard does not edit issues directly.
 
+RUN CI button
+-------------
+
+The green **▶ RUN CI** button at the top of the page tees up a
+dashboard rebuild: it opens GitLab's *Run pipeline* form in a new tab
+with the default branch preselected, so a single click there starts
+the pipeline. (A static Pages site can't fire the pipeline directly —
+that requires an authenticated POST — so the button takes you to the
+one-click form instead.) A run takes 1–3 minutes; reload the dashboard
+when it finishes. The button only renders on GitLab-deployed builds,
+where the server URL and project path are known.
+
 Version footer
 --------------
 

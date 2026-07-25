@@ -352,6 +352,11 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     assert 'id="risks-table"' in html
     assert 'id="export-csv"' in html
     assert 'id="col-toggles"' in html
+    # Green RUN CI button in the page head links to GitLab's Run-pipeline
+    # form with the branch preselected.
+    assert 'class="btn btn-run-ci"' in html, "RUN CI button missing"
+    assert "/-/pipelines/new?ref=" in html, "RUN CI href should tee up the run-pipeline form"
+    assert "RUN CI</a>" in html
     # Top-N display limiter with the three fixed options.
     assert '<select id="top-n"' in html
     for n in (5, 10, 25):
