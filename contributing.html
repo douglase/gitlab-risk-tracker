@@ -1,0 +1,223 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contributing &mdash; gitlab-risk-tracker 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="License" href="license.html" />
+    <link rel="prev" title="Deploying on GitLab" href="deployment.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            gitlab-risk-tracker
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="preview.html">Example dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Local setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="gitlab-setup.html">GitLab project setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Using the dashboard</a></li>
+<li class="toctree-l1"><a class="reference internal" href="importer.html">Importing from a spreadsheet</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deploying on GitLab</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Contributing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#workflow">Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#coding-conventions">Coding conventions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#tests">Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#continuous-integration">Continuous integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-heading-synonym">Adding a heading synonym</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-new-section-column">Adding a new section column</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">gitlab-risk-tracker</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Contributing</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/douglase/gitlab-risk-tracker/blob/main/docs/contributing.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="contributing">
+<h1>Contributing<a class="headerlink" href="#contributing" title="Link to this heading"></a></h1>
+<p>Bug reports, feature requests, and pull requests welcome.</p>
+<section id="workflow">
+<h2>Workflow<a class="headerlink" href="#workflow" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Open an issue describing the change.</p></li>
+<li><p>Branch from <code class="docutils literal notranslate"><span class="pre">main</span></code>; make the change locally.</p></li>
+<li><p>Run the test suites: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tests/test_build.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tests/test_import_smartsheet.py</span></code> (or <code class="docutils literal notranslate"><span class="pre">pytest</span> <span class="pre">tests/</span></code> to
+run both).</p></li>
+<li><p>Push a branch and open a pull request.</p></li>
+</ol>
+</section>
+<section id="coding-conventions">
+<h2>Coding conventions<a class="headerlink" href="#coding-conventions" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Python: prefer standard library; minimize new dependencies.</p></li>
+<li><p>Vanilla JS in the template (no framework, no CDN).</p></li>
+<li><p>All changes should keep the dashboard self-contained — no external
+network requests at runtime in the published HTML.</p></li>
+<li><p>New columns in the risks table should be added to <code class="docutils literal notranslate"><span class="pre">COLUMNS</span></code> in
+the template and have their data populated in
+<code class="docutils literal notranslate"><span class="pre">risks_table_json</span></code> in <code class="docutils literal notranslate"><span class="pre">build.py</span></code>.</p></li>
+</ul>
+</section>
+<section id="tests">
+<h2>Tests<a class="headerlink" href="#tests" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">tests/test_build.py</span></code> mocks the GitLab GraphQL responses, exercises
+the full <code class="docutils literal notranslate"><span class="pre">main()</span></code> pipeline, and asserts on the rendered HTML, history
+append semantics, and section parsing. Sample risks are based on
+examples from the NASA Risk Management Handbook (NASA/SP-2011-3422,
+Rev. A).</p>
+<p><code class="docutils literal notranslate"><span class="pre">tests/test_import_smartsheet.py</span></code> covers the spreadsheet importer
+(see <a class="reference internal" href="importer.html"><span class="doc">Importing from a spreadsheet</span></a>): the non-destructive proposal-block behavior,
+idempotent re-runs, heading-synonym matching, the bare-body fallback,
+and the per-row failure diagnostics. Its helpers are pure-Python, so
+the suite runs without a GitLab connection or an <code class="docutils literal notranslate"><span class="pre">.xlsx</span></code> file.</p>
+</section>
+<section id="continuous-integration">
+<h2>Continuous integration<a class="headerlink" href="#continuous-integration" title="Link to this heading"></a></h2>
+<p>Two GitHub Actions workflows run on this repository (note that the
+production dashboard pipeline itself runs on <strong>GitLab</strong>; these
+workflows only support development of the tool on GitHub):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Workflow</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.github/workflows/test.yml</span></code></p></td>
+<td><p>Runs both <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tests/test_build.py</span></code> and
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">tests/test_import_smartsheet.py</span></code> on every push and
+pull request. Exercises the full <code class="docutils literal notranslate"><span class="pre">build.py</span></code> pipeline against
+mocked GitLab data (matrix counts, history append semantics,
+section parsing, markdown sanitization, the rendered HTML) and
+the importer’s pure-Python helpers.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">.github/workflows/scancode.yml</span></code></p></td>
+<td><p>License-scan gate. Runs
+<a class="reference external" href="https://github.com/aboutcode-org/scancode-toolkit">scancode-toolkit</a>
+on every push and pull request and fails the build if any
+detected license is outside the allowlist in
+<code class="docutils literal notranslate"><span class="pre">scripts/check_scancode_allowlist.py</span></code>. Protects the GPL-3.0
+release from accidentally absorbing incompatibly-licensed code;
+see <a class="reference internal" href="license.html"><span class="doc">License</span></a> for details and how to extend the allowlist.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">.github/workflows/docs.yml</span></code></p></td>
+<td><p>Documentation publisher. On push to <code class="docutils literal notranslate"><span class="pre">main</span></code>, builds this
+Sphinx site under <code class="docutils literal notranslate"><span class="pre">docs/</span></code> and deploys the HTML to the
+<code class="docutils literal notranslate"><span class="pre">gh-pages</span></code> branch, which GitHub Pages then serves at the
+project’s docs URL. Builds run with <code class="docutils literal notranslate"><span class="pre">-W</span></code> (warnings treated
+as errors) so doc-syntax regressions block the deploy.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Dependency updates for both workflows (and for <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code>)
+arrive as PRs via <code class="docutils literal notranslate"><span class="pre">.github/dependabot.yml</span></code>.</p>
+<section id="adding-a-heading-synonym">
+<h3>Adding a heading synonym<a class="headerlink" href="#adding-a-heading-synonym" title="Link to this heading"></a></h3>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">CANONICAL_SECTIONS</span></code> in <code class="docutils literal notranslate"><span class="pre">build.py</span></code>; add an entry to the
+relevant tuple’s synonym list. Add a test case in
+<code class="docutils literal notranslate"><span class="pre">test_parse_sections</span></code>.</p>
+</section>
+<section id="adding-a-new-section-column">
+<h3>Adding a new section column<a class="headerlink" href="#adding-a-new-section-column" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p>Add an entry to <code class="docutils literal notranslate"><span class="pre">CANONICAL_SECTIONS</span></code> with a fresh <code class="docutils literal notranslate"><span class="pre">key</span></code>.</p></li>
+<li><p>The Jinja template renders all sections via <code class="docutils literal notranslate"><span class="pre">SECTION_META</span></code>
+automatically; no template edits needed.</p></li>
+<li><p>Update <code class="docutils literal notranslate"><span class="pre">docs/gitlab-setup.rst</span></code> with the new accepted heading.</p></li>
+</ol>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="deployment.html" class="btn btn-neutral float-left" title="Deploying on GitLab" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="license.html" class="btn btn-neutral float-right" title="License" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Ewan Douglas and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
