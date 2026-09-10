@@ -56,12 +56,33 @@ Two trend charts at the top:
 Both charts label the current value at the right edge so you can read
 the present state without inspecting the rightmost data point.
 
+Movement and Subsystem breakdown
+--------------------------------
+
+Two summary sections sit between the charts and the risks table, both
+**collapsed by default** — click a heading to expand it:
+
+- **Movement (last 30 days)** — four cards listing risks that escalated,
+  de-escalated, were newly added, or were closed in the last 30 days
+  (up to 10 each), reconstructed from the history log.
+- **Subsystem breakdown (label occurrences)** — a bar per subsystem
+  label counting open issues carrying it. An issue with two subsystem
+  labels counts once under each.
+
 Risks table
 -----------
 
 A flat sortable table at the bottom of the page lists every open
 scored risk. Default sort is by score descending. Click any column
 header to sort by that column.
+
+The **Show** selector in the table toolbar limits the view to the
+**Top 5**, **Top 10**, or **Top 25** risks (default: All). "Top" always
+means the highest-scored risks after the active filters — regardless of
+severity tier and regardless of how the table is currently sorted; the
+column sort only changes the display order of those N rows. The row
+count in the heading shows ``N of M`` when a limit is active, and the
+CSV export respects the same limit.
 
 Columns
 ^^^^^^^
@@ -116,6 +137,51 @@ Edit pencils
 Each section cell has a small ✎ icon that opens the issue at the
 relevant heading anchor in a new tab. Editing happens in GitLab's
 native UI; the dashboard does not edit issues directly.
+
+Top 5 risk decks (MSR)
+----------------------
+
+Every build pre-generates one "Top 5 <product> Risks" slide deck per
+product label (the labels matched by the product patterns, e.g. ``ESC*``,
+``WCC*``, ``TO<n>*``), in the standard monthly-status-report format:
+a single slide with a Title / C / L / Score / Risk Type / Risk
+Description / Trend / Notes / Mitigation Plan table holding that
+product's five highest-scored open risks. The **Top 5 risk decks
+(MSR)** section of the dashboard links each product's ``.pptx`` and a
+print-ready ``.pdf``, served from ``public/msr/``.
+
+Details:
+
+- The table template is ``templates/msr_top5.pptx`` (University of
+  Arizona MSR branding). Swap that file to restyle the decks; the
+  generator (``msr_decks.py``) only requires a slide whose title starts
+  with "Top 5" and a 9-column table with one header row and five data
+  rows.
+- The **Trend** column mirrors the dashboard's 30-day movement data:
+  ``New`` (first seen in the window), ``↑`` escalated, ``↓``
+  de-escalated, ``→`` steady.
+- Risk Description, Notes, and Mitigation Plan come from the issue
+  description's canonical sections, flattened to plain slide text
+  (markdown emphasis and links stripped, bullets in the ``-Item`` MSR
+  house style).
+- PDFs are converted with LibreOffice via ``scripts/pptx_to_pdf.sh``,
+  which maps the template's Aptos fonts to the metric-compatible
+  Carlito so the dense table doesn't overflow the slide. If LibreOffice
+  is unavailable (e.g. a local build), decks are PPTX-only and the
+  build prints a note.
+
+RUN CI button
+-------------
+
+The green **▶ RUN CI** button in the *Refresh this dashboard* section
+(next to *Open pipeline schedules*) tees up a dashboard rebuild: it
+opens GitLab's *Run pipeline* form in a new tab with the default branch
+preselected, so a single click there starts the pipeline. (A static
+Pages site can't fire the pipeline directly — that requires an
+authenticated POST — so the button takes you to the one-click form
+instead.) A run takes 1–3 minutes; reload the dashboard when it
+finishes. The section only renders on GitLab-deployed builds, where the
+server URL and project path are known.
 
 Version footer
 --------------

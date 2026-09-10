@@ -352,9 +352,51 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     assert 'id="risks-table"' in html
     assert 'id="export-csv"' in html
     assert 'id="col-toggles"' in html
+    # Green RUN CI button in the page head links to GitLab's Run-pipeline
+    # form with the branch preselected.
+    assert 'class="btn btn-run-ci"' in html, "RUN CI button missing"
+    assert "/-/pipelines/new?ref=" in html, "RUN CI href should tee up the run-pipeline form"
+    assert "RUN CI</a>" in html
+    # Top-N display limiter with the three fixed options.
+    assert '<select id="top-n"' in html
+    for n in (5, 10, 25):
+        assert f'<option value="{n}">Top {n}</option>' in html, \
+            f"Top {n} option missing"
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
+    # Per-product Top-5 MSR decks are generated and linked.
+    msr_dir = public_dir / "msr"
+    deck_files = sorted(p.name for p in msr_dir.glob("top5_*.pptx"))
+    assert deck_files, "no MSR decks generated in public/msr/"
+    assert "top5_ESC033.pptx" in deck_files
+    assert 'href="msr/top5_ESC033.pptx"' in html, "deck link missing from dashboard"
+    assert "Top 5 risk decks" in html
+    # Deck slide XML holds the product title and the top risk's title,
+    # with no leftover template placeholders and no raw markdown markers.
+    import zipfile
+    with zipfile.ZipFile(msr_dir / "top5_WCC100.pptx") as z:
+        slide_xml = z.read("ppt/slides/slide1.xml").decode()
+    assert "Top 5 WCC100 Risks" in slide_xml
+    assert "Planetary contamination from aerocapture breakup" in slide_xml
+    assert ">xxx<" not in slide_xml, "template placeholder left in deck"
+    assert "**" not in slide_xml, "raw markdown emphasis leaked into deck"
+    # The fixture item's markdown sections landed in plain-text form.
+    assert "-Refine atmospheric uncertainty model" in slide_xml
+    assert "If shield margin remains below 30%" in slide_xml
+    # PDFs are produced when LibreOffice is available; skip otherwise.
+    if shutil.which("soffice"):
+        assert (msr_dir / "top5_WCC100.pdf").exists(), \
+            "soffice present but no PDF generated"
+
+    # Movement, Subsystem breakdown, and Unscored sections are wrapped in
+    # default-collapsed <details> (no `open` attribute).
+    import re as _re
+    collapse_tags = _re.findall(r'<details class="section-collapse"[^>]*>', html)
+    assert len(collapse_tags) >= 3, \
+        f"expected >=3 collapsed sections, found {len(collapse_tags)}"
+    assert all("open" not in t for t in collapse_tags), \
+        f"a section-collapse details is unexpectedly open: {collapse_tags}"
 
     # History: only changed items append new rows. Backdated trail had
     # #1 at C5xL4 already (same as current), #2 at C4xL5 (same as current),
@@ -769,8 +811,26 @@ def test_risk_label_filter_case_insensitive_substring() -> None:
             os.environ["RISK_LABEL_FILTER"] = saved
 
 
+def test_msr_section_lines() -> None:
+    from msr_decks import _section_lines
+    md = (
+        "Given that **knowledge** is *limited*, see\n"
+        "[the handbook](https://x.example) for `details`\n"
+        "\n"
+        "- Do the first thing.\n"
+        "* Do the second thing.\n"
+    )
+    assert _section_lines(md) == [
+        "Given that knowledge is limited, see the handbook for details",
+        "-Do the first thing.",
+        "-Do the second thing.",
+    ]
+    assert _section_lines("") == []
+
+
 if __name__ == "__main__":
     import tempfile
+    test_msr_section_lines()
     test_risk_label_filter_case_insensitive_substring()
     test_graphql_401_exits_with_actionable_message()
     test_render_markdown_sanitization()
