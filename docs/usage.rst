@@ -138,6 +138,38 @@ Each section cell has a small ✎ icon that opens the issue at the
 relevant heading anchor in a new tab. Editing happens in GitLab's
 native UI; the dashboard does not edit issues directly.
 
+Top 5 risk decks (MSR)
+----------------------
+
+Every build pre-generates one "Top 5 <product> Risks" slide deck per
+product label (the labels matched by the product patterns, e.g. ``ESC*``,
+``WCC*``, ``TO<n>*``), in the standard monthly-status-report format:
+a single slide with a Title / C / L / Score / Risk Type / Risk
+Description / Trend / Notes / Mitigation Plan table holding that
+product's five highest-scored open risks. The **Top 5 risk decks
+(MSR)** section of the dashboard links each product's ``.pptx`` and a
+print-ready ``.pdf``, served from ``public/msr/``.
+
+Details:
+
+- The table template is ``templates/msr_top5.pptx`` (University of
+  Arizona MSR branding). Swap that file to restyle the decks; the
+  generator (``msr_decks.py``) only requires a slide whose title starts
+  with "Top 5" and a 9-column table with one header row and five data
+  rows.
+- The **Trend** column mirrors the dashboard's 30-day movement data:
+  ``New`` (first seen in the window), ``↑`` escalated, ``↓``
+  de-escalated, ``→`` steady.
+- Risk Description, Notes, and Mitigation Plan come from the issue
+  description's canonical sections, flattened to plain slide text
+  (markdown emphasis and links stripped, bullets in the ``-Item`` MSR
+  house style).
+- PDFs are converted with LibreOffice via ``scripts/pptx_to_pdf.sh``,
+  which maps the template's Aptos fonts to the metric-compatible
+  Carlito so the dense table doesn't overflow the slide. If LibreOffice
+  is unavailable (e.g. a local build), decks are PPTX-only and the
+  build prints a note.
+
 RUN CI button
 -------------
 

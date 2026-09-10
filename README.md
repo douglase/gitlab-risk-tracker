@@ -19,6 +19,7 @@ renders a 5×5 consequence × likelihood matrix at the published Pages URL.
 - 90-day trend chart (issues by severity tier)
 - 30-day movement summary (escalated / de-escalated / new / closed)
 - Subsystem label-occurrence breakdown
+- Pre-generated "Top 5 risks" MSR slide decks per product (PPTX + print-ready PDF)
 
 ## Inputs (locked to this group)
 

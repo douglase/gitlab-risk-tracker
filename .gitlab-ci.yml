@@ -6,7 +6,11 @@ pages:
   variables:
     HISTORY_BRANCH: risk-history
   before_script:
+    # libreoffice-impress + Carlito render the Top-5 MSR decks to PDF
+    # (Carlito stands in for the Aptos fonts the template uses; without
+    # it LibreOffice substitutes a wider font and the table overflows).
     - apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      libreoffice-impress fonts-crosextra-carlito fontconfig
     - pip install --no-cache-dir -r requirements.txt
   script:
     - |

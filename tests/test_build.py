@@ -365,6 +365,30 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     # Subsystem bars
     for sub in build.SUBSYSTEMS:
         assert f">{sub}<" in html, f"subsystem {sub} missing from rendered HTML"
+    # Per-product Top-5 MSR decks are generated and linked.
+    msr_dir = public_dir / "msr"
+    deck_files = sorted(p.name for p in msr_dir.glob("top5_*.pptx"))
+    assert deck_files, "no MSR decks generated in public/msr/"
+    assert "top5_ESC033.pptx" in deck_files
+    assert 'href="msr/top5_ESC033.pptx"' in html, "deck link missing from dashboard"
+    assert "Top 5 risk decks" in html
+    # Deck slide XML holds the product title and the top risk's title,
+    # with no leftover template placeholders and no raw markdown markers.
+    import zipfile
+    with zipfile.ZipFile(msr_dir / "top5_WCC100.pptx") as z:
+        slide_xml = z.read("ppt/slides/slide1.xml").decode()
+    assert "Top 5 WCC100 Risks" in slide_xml
+    assert "Planetary contamination from aerocapture breakup" in slide_xml
+    assert ">xxx<" not in slide_xml, "template placeholder left in deck"
+    assert "**" not in slide_xml, "raw markdown emphasis leaked into deck"
+    # The fixture item's markdown sections landed in plain-text form.
+    assert "-Refine atmospheric uncertainty model" in slide_xml
+    assert "If shield margin remains below 30%" in slide_xml
+    # PDFs are produced when LibreOffice is available; skip otherwise.
+    if shutil.which("soffice"):
+        assert (msr_dir / "top5_WCC100.pdf").exists(), \
+            "soffice present but no PDF generated"
+
     # Movement, Subsystem breakdown, and Unscored sections are wrapped in
     # default-collapsed <details> (no `open` attribute).
     import re as _re
@@ -787,8 +811,26 @@ def test_risk_label_filter_case_insensitive_substring() -> None:
             os.environ["RISK_LABEL_FILTER"] = saved
 
 
+def test_msr_section_lines() -> None:
+    from msr_decks import _section_lines
+    md = (
+        "Given that **knowledge** is *limited*, see\n"
+        "[the handbook](https://x.example) for `details`\n"
+        "\n"
+        "- Do the first thing.\n"
+        "* Do the second thing.\n"
+    )
+    assert _section_lines(md) == [
+        "Given that knowledge is limited, see the handbook for details",
+        "-Do the first thing.",
+        "-Do the second thing.",
+    ]
+    assert _section_lines("") == []
+
+
 if __name__ == "__main__":
     import tempfile
+    test_msr_section_lines()
     test_risk_label_filter_case_insensitive_substring()
     test_graphql_401_exits_with_actionable_message()
     test_render_markdown_sanitization()

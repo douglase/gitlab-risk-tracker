@@ -749,7 +749,8 @@ def git_version() -> str:
 
 
 def render(items: list[dict], history: list[dict],
-           server_url: str = "", project_path: str = "") -> None:
+           server_url: str = "", project_path: str = "",
+           msr_decks: list[dict] | None = None) -> None:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(["html"]),
@@ -887,6 +888,7 @@ def render(items: list[dict], history: list[dict],
         unscored_table_json=json.dumps(unscored_table),
         section_meta=section_meta,
         max_preview_chars=MAX_PREVIEW_CHARS,
+        msr_decks=msr_decks or [],
     )
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     (PUBLIC_DIR / "index.html").write_text(html)
@@ -907,13 +909,21 @@ def main() -> None:
         )
     history = load_history()
     history = update_history(items, history)
+    from msr_decks import generate_msr_decks
+    decks = generate_msr_decks(
+        items, movement(history),
+        out_dir=PUBLIC_DIR / "msr",
+        template=ROOT / "templates" / "msr_top5.pptx",
+    )
     render(
         items, history,
         server_url=gitlab_url(),
         project_path=os.environ.get("CI_PROJECT_PATH", ""),
+        msr_decks=decks,
     )
     print(f"Rendered public/index.html with {len(items)} work items "
-          f"({sum(1 for i in items if i['state'] != 'closed')} open).")
+          f"({sum(1 for i in items if i['state'] != 'closed')} open); "
+          f"{len(decks)} Top-5 MSR deck(s) in public/msr/.")
 
 
 if __name__ == "__main__":

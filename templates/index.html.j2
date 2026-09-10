@@ -92,6 +92,10 @@
   .btn-primary:hover { background: #0d4ea0; color: white; }
   .btn-run-ci { background: #2e7d32; color: white; border-color: #2e7d32; font-weight: 600; }
   .btn-run-ci:hover { background: #1b5e20; color: white; }
+  .deck-note { color: var(--muted); font-size: 12px; margin: .25rem 0 .5rem; }
+  .deck-links { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; }
+  .deck-links li { border: 1px solid var(--border); border-radius: 4px; padding: .35rem .75rem; background: white; }
+  .deck-count { color: var(--muted); font-size: 12px; }
   footer.dashboard-footer { text-align: center; color: var(--muted); font-size: 12px; padding: 1rem 0 .5rem 0; }
   footer.dashboard-footer a { color: var(--muted); text-decoration: none; }
   footer.dashboard-footer a:hover { color: #1565c0; text-decoration: underline; }
@@ -273,6 +277,22 @@
   {% endfor %}
   </details>
 </section>
+
+{% if msr_decks %}
+<section>
+  <h2>Top 5 risk decks (MSR)</h2>
+  <p class="deck-note">Pre-generated monthly-status-report slides — each product's five
+  highest-scored open risks in the standard Top-5 table format.</p>
+  <ul class="deck-links">
+    {% for d in msr_decks %}
+    <li><strong>{{ d.product }}</strong>
+      <a href="{{ d.pptx }}" download>PPTX</a>
+      {% if d.pdf %}· <a href="{{ d.pdf }}" download>PDF</a>{% endif %}
+      <span class="deck-count">({{ d.count }} risk{{ "s" if d.count != 1 }})</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 <section class="risks-section">
   <h2>Risks (<span class="row-count" id="row-count">0</span>)</h2>
