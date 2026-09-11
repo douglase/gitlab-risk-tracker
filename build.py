@@ -686,9 +686,17 @@ def movement(history: list[dict], days: int = 30) -> dict:
         first_seen = rows_sorted[0]
         if first_seen["ts"] >= start_iso:
             new_items.append(first_seen)
-        recent = [r for r in rows_sorted if r["ts"] >= start_iso]
-        if not recent:
+        # History only appends a row when something changed, so a risk
+        # that changed once during the window has a single in-window row
+        # whose comparison baseline lies *before* the window. Keep that
+        # last pre-window row as pair-partner (prev only — it is never a
+        # `cur`), otherwise single-change escalations, de-escalations,
+        # and closures are silently reported as steady.
+        first_in_window = next(
+            (i for i, r in enumerate(rows_sorted) if r["ts"] >= start_iso), None)
+        if first_in_window is None:
             continue
+        recent = rows_sorted[max(first_in_window - 1, 0):]
         for i in range(1, len(recent)):
             prev, cur = recent[i - 1], recent[i]
             prev_score = (prev.get("consequence") or 0) * (prev.get("likelihood") or 0)

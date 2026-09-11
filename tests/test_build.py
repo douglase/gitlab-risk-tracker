@@ -384,6 +384,28 @@ def test_build_dashboard(tmp_path_factory=None) -> None:
     # The fixture item's markdown sections landed in plain-text form.
     assert "-Refine atmospheric uncertainty model" in slide_xml
     assert "If shield margin remains below 30%" in slide_xml
+    # Trend column: the backdated history says #1 escalated 10 days ago
+    # (baseline 60 days ago), #4 de-escalated 5 days ago (baseline 45
+    # days ago), #6 was first seen 3 days ago — all inside the 30-day
+    # window even though the comparison baselines predate it.
+    from msr_decks import trend_by_iid
+    mv = build.movement(build.load_history())
+    assert "1" in {r["iid"] for r in mv["escalated"]}, \
+        "fixture escalation with pre-window baseline not detected"
+    assert "4" in {r["iid"] for r in mv["deescalated"]}, \
+        "fixture de-escalation with pre-window baseline not detected"
+    assert "6" in {r["iid"] for r in mv["new"]}
+    trends = trend_by_iid(mv)
+    assert trends["1"] == "↑" and trends["4"] == "↓" and trends["6"] == "New"
+    # ...and the glyphs land in the decks: TO12 holds #1 (↑) and #4 (↓),
+    # TO8 holds #6 (New).
+    with zipfile.ZipFile(msr_dir / "top5_TO12-_Planet_X_EDL.pptx") as z:
+        to12_xml = z.read("ppt/slides/slide1.xml").decode()
+    assert ">↑<" in to12_xml, "escalated glyph missing from TO12 deck"
+    assert ">↓<" in to12_xml, "de-escalated glyph missing from TO12 deck"
+    with zipfile.ZipFile(msr_dir / "top5_TO8-_Software_Dev.pptx") as z:
+        to8_xml = z.read("ppt/slides/slide1.xml").decode()
+    assert ">New<" in to8_xml, "New glyph missing from TO8 deck"
     # PDFs are produced when LibreOffice is available; skip otherwise.
     if shutil.which("soffice"):
         assert (msr_dir / "top5_WCC100.pdf").exists(), \
@@ -811,6 +833,102 @@ def test_risk_label_filter_case_insensitive_substring() -> None:
             os.environ["RISK_LABEL_FILTER"] = saved
 
 
+def _mv_row(rid: str, iid: str, when: datetime, c: int, l: int,
+            state: str = "open") -> dict:
+    return {
+        "ts": when.isoformat(timespec="seconds"), "id": rid, "iid": iid,
+        "title": f"risk {iid}", "state": state, "consequence": c,
+        "likelihood": l, "priority": "High", "risk_types": [],
+        "subsystems": [], "web_url": "",
+    }
+
+
+def test_movement_window_boundaries() -> None:
+    """History only appends rows on change, so the common case is a single
+    in-window row whose comparison baseline predates the window. Those
+    single changes must still be counted."""
+    now = datetime.now(timezone.utc)
+    d = lambda days: now - timedelta(days=days)
+    history = [
+        # A: escalated once, 10 days ago (baseline row outside the window).
+        _mv_row("A", "1", d(60), 2, 3), _mv_row("A", "1", d(10), 3, 4),
+        # B: escalated in two in-window steps.
+        _mv_row("B", "2", d(60), 2, 3), _mv_row("B", "2", d(20), 3, 3),
+        _mv_row("B", "2", d(10), 3, 4),
+        # C: de-escalated once, 5 days ago (baseline outside the window).
+        _mv_row("C", "3", d(60), 4, 4), _mv_row("C", "3", d(5), 2, 2),
+        # D: score change happened entirely BEFORE the window -> steady.
+        _mv_row("D", "4", d(60), 2, 2), _mv_row("D", "4", d(45), 4, 4),
+        # E: first seen inside the window -> new.
+        _mv_row("E", "5", d(7), 3, 3),
+        # F: closed inside the window, prior row outside it.
+        _mv_row("F", "6", d(60), 3, 3), _mv_row("F", "6", d(8), 3, 3, state="closed"),
+        # G: old and unchanged -> nowhere.
+        _mv_row("G", "7", d(60), 3, 3),
+    ]
+    mv = build.movement(history)
+    assert sorted(r["id"] for r in mv["escalated"]) == ["A", "B", "B"]
+    assert [r["id"] for r in mv["deescalated"]] == ["C"]
+    assert [r["id"] for r in mv["new"]] == ["E"]
+    assert [r["id"] for r in mv["closed"]] == ["F"]
+
+    from msr_decks import trend_by_iid, TREND_FLAT
+    trends = trend_by_iid(mv)
+    assert trends == {"1": "↑", "2": "↑", "3": "↓", "5": "New"}
+    # Steady/unknown risks are simply absent -> deck falls back to →.
+    assert trends.get("4", TREND_FLAT) == TREND_FLAT
+    assert trends.get("7", TREND_FLAT) == TREND_FLAT
+
+
+def test_movement_window_edges() -> None:
+    """The window opens at midnight UTC `days` ago: events minutes inside
+    the boundary are captured, events minutes outside are excluded."""
+    today = datetime.now(timezone.utc).date()
+    start = datetime(today.year, today.month, today.day,
+                     tzinfo=timezone.utc) - timedelta(days=30)
+    inside = start + timedelta(minutes=1)
+    outside = start - timedelta(minutes=1)
+    baseline = start - timedelta(days=30)
+
+    history = [
+        # Escalation timestamped 1 minute inside the boundary: counted.
+        _mv_row("in-esc", "1", baseline, 2, 2), _mv_row("in-esc", "1", inside, 4, 4),
+        # Same shape 1 minute outside: not counted.
+        _mv_row("out-esc", "2", baseline, 2, 2), _mv_row("out-esc", "2", outside, 4, 4),
+        # First seen just inside vs just outside.
+        _mv_row("in-new", "3", inside, 3, 3),
+        _mv_row("out-new", "4", outside, 3, 3),
+        # Closure just inside vs just outside.
+        _mv_row("in-cls", "5", baseline, 3, 3),
+        _mv_row("in-cls", "5", inside, 3, 3, state="closed"),
+        _mv_row("out-cls", "6", baseline, 3, 3),
+        _mv_row("out-cls", "6", outside, 3, 3, state="closed"),
+    ]
+    mv = build.movement(history)
+    assert [r["id"] for r in mv["escalated"]] == ["in-esc"]
+    assert [r["id"] for r in mv["new"]] == ["in-new"]
+    assert [r["id"] for r in mv["closed"]] == ["in-cls"]
+    assert mv["deescalated"] == []
+
+    # The days parameter moves the window: a change 10 days ago is inside
+    # a 30-day window but outside a 7-day one.
+    now = datetime.now(timezone.utc)
+    hist10 = [_mv_row("X", "9", now - timedelta(days=60), 2, 2),
+              _mv_row("X", "9", now - timedelta(days=10), 4, 4)]
+    assert [r["id"] for r in build.movement(hist10, days=30)["escalated"]] == ["X"]
+    assert build.movement(hist10, days=7)["escalated"] == []
+
+
+def test_trend_by_iid_precedence() -> None:
+    from msr_decks import trend_by_iid
+    mv = {
+        "new": [{"iid": "1"}],
+        "escalated": [{"iid": "1"}, {"iid": "2"}],
+        "deescalated": [{"iid": "1"}, {"iid": "2"}, {"iid": "3"}],
+    }
+    assert trend_by_iid(mv) == {"1": "New", "2": "↑", "3": "↓"}
+
+
 def test_msr_section_lines() -> None:
     from msr_decks import _section_lines
     md = (
@@ -830,6 +948,9 @@ def test_msr_section_lines() -> None:
 
 if __name__ == "__main__":
     import tempfile
+    test_movement_window_boundaries()
+    test_movement_window_edges()
+    test_trend_by_iid_precedence()
     test_msr_section_lines()
     test_risk_label_filter_case_insensitive_substring()
     test_graphql_401_exits_with_actionable_message()
