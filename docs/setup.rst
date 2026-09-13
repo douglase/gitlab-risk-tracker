@@ -2,8 +2,9 @@ Local setup
 ===========
 
 This page covers running ``build.py`` on your own machine to preview
-the dashboard. To run it as an automated GitLab pipeline instead, see
-:doc:`deployment`.
+the dashboard against GitLab. To run it as an automated GitLab pipeline
+instead, see :doc:`deployment`; to read risks from GitHub rather than
+GitLab, see :doc:`github-setup`.
 
 Prerequisites
 -------------

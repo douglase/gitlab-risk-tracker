@@ -5,11 +5,18 @@
 [![Docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://douglase.github.io/gitlab-risk-tracker/)
 [![License scan](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml/badge.svg)](https://github.com/douglase/gitlab-risk-tracker/actions/workflows/scancode.yml)
 
-GitLab Pages dashboard for risks in the `stp` group.
+Pages dashboard for risks in the `stp` group.
 
 Pulls all work-item issues from `stp` (recursive) via GraphQL, snapshots
 changed custom-field values to `data/history.ndjson` once per day, and
 renders a 5×5 consequence × likelihood matrix at the published Pages URL.
+
+Works against **GitLab** (default) or **GitHub**. Set
+`RISK_PROVIDER=github` to read risks from GitHub organization *issue
+fields* — the analogue of GitLab work-item custom fields, pinned to a
+`Risk` issue type — instead of a GitLab group. See
+[docs/github-setup.rst](docs/github-setup.rst). Everything downstream of
+the fetch (history, trends, matrix, MSR decks) is provider-agnostic.
 
 ## What it shows
 
@@ -32,7 +39,15 @@ renders a 5×5 consequence × likelihood matrix at the published Pages URL.
 - Subsystem labels (plain): `optics`, `thermal`, `software`, `mechanical`,
   `electrical` — edit the `SUBSYSTEMS` list in `build.py` to change.
 
-## Setup
+On GitHub the same four values come from organization **issue fields**
+pinned to a `Risk` issue type: `Consequence` and `Likelihood` as Number,
+`Priority Level` as single-select, `Risk Type` as multi-select — only
+`Risk Type` is multi-valued. Field names
+are matched case-insensitively and ignoring a trailing `(C)`-style suffix,
+so the defaults above match fields named plainly `Consequence` /
+`Likelihood`.
+
+## Setup (GitLab)
 
 1. **Create the project** `stp/risks-dashboard` on the GitLab instance.
    Push this directory's contents to its default branch.
@@ -51,7 +66,44 @@ renders a 5×5 consequence × likelihood matrix at the published Pages URL.
 7. **Trigger the first run** manually (Pipelines → Run pipeline) to seed
    `data/history.ndjson` and publish the initial dashboard.
 
+## Setup (GitHub Actions)
+
+Runs `.github/workflows/dashboard.yml`. Full walk-through in
+[docs/github-setup.rst](docs/github-setup.rst).
+
+1. **Create the repository** (e.g. `<org>/risks-dashboard`) and push this
+   directory's contents to its default branch.
+2. **Define the issue type and fields.** Org Settings → Planning → Issue
+   types → add `Risk`. Then Issue fields → add `Consequence` (Number),
+   `Likelihood` (Number), `Priority Level` (single select),
+   `Risk Type` (multi select), and pin each to the `Risk` type.
+3. **Create a PAT** that can read the org's issues — classic with `repo`,
+   or fine-grained with *Issues: Read-only*. Add it as repository secret
+   `RISK_TOKEN`. A run's built-in `GITHUB_TOKEN` is scoped to its own
+   repository and cannot read issues org-wide, so the PAT is required.
+4. **Repository variables** (Settings → Secrets and variables → Actions →
+   Variables): `RISK_GITHUB_ISSUE_TYPE=Risk`; `RISK_GITHUB_OWNER` if the
+   issues live under a different org than the repo; `PUBLISH_PAGES=true`
+   to enable the Pages deploy.
+5. **Pages.** Settings → Pages → Source: **GitHub Actions**. Note there is
+   no equivalent of GitLab's "Only project members" access control on
+   github.com — public-repo Pages is world-readable and private-repo Pages
+   needs Enterprise Cloud, so keep the repo private or consume the run
+   artifact instead.
+6. **Schedule.** Already declared in the workflow (`cron: '0 2 * * *'`);
+   there is no separate schedule object to create. No branch protection or
+   push-token step either — the history snapshot goes to the orphan
+   `risk-history` branch with the built-in `GITHUB_TOKEN`, and that branch
+   is not a workflow trigger, so no `ci.skip` equivalent is needed.
+7. **Trigger the first run** manually (Actions → *Risk dashboard* → Run
+   workflow) to seed `risk-history` and publish the initial dashboard.
+
 ## Local dry run
+
+Pulls live data but does not commit. `data/history.ndjson` is
+created/appended in your working copy.
+
+### GitLab
 
 ```bash
 export GITLAB_TOKEN=<your token>
@@ -61,14 +113,28 @@ python build.py
 open public/index.html
 ```
 
-This pulls live data but does not commit. `data/history.ndjson` will be
-created/appended in your working copy.
+### GitHub
+
+```bash
+export RISK_PROVIDER=github
+export GITHUB_TOKEN=<PAT with read access to the org issues>
+export RISK_GITHUB_OWNER=<org>
+export RISK_GITHUB_ISSUE_TYPE=Risk
+pip install -r requirements.txt
+python build.py
+open public/index.html
+```
+
+Watch stderr: the startup probe prints the issue-search query, how many
+issues it matched, and the issue-field names found on the first match —
+the quickest way to confirm the scan is pointed at the right place.
 
 ## Files
 
-- `build.py` — GraphQL fetch, change-event snapshot, HTML render
+- `build.py` — GraphQL fetch (GitLab or GitHub), change-event snapshot, HTML render
 - `templates/index.html.j2` — dashboard layout (self-contained HTML/CSS/JS)
-- `.gitlab-ci.yml` — `pages` job, runs on schedule + web triggers
+- `.gitlab-ci.yml` — GitLab `pages` job, runs on schedule + web triggers
+- `.github/workflows/dashboard.yml` — the GitHub Actions equivalent
 - `data/history.ndjson` — append-only change log (committed each run)
 - `public/index.html` — generated artifact published by Pages
 
@@ -84,6 +150,28 @@ created/appended in your working copy.
   install`. Switch to a pre-baked image or internal PyPI mirror if your
   runner is restricted.
 - **Epics.** Not included in v1 (`types: [ISSUE]` only).
+- **GitHub search cap.** The GitHub provider enumerates risks with issue
+  search, which limits how deeply results can be paginated. `build.py`
+  compares what it retrieved against the reported `issueCount` and warns
+  loudly on a shortfall — narrow the scan with `RISK_GITHUB_ISSUE_TYPE` or
+  `RISK_GITHUB_SEARCH` if you see it.
+- **Blank column on GitHub?** The startup probe prints what each
+  configured field name matched; `NOT FOUND` means that column will be
+  empty for every risk. If the name *did* match and the column is still
+  blank, run `RISK_DEBUG_FIELDS=1 python build.py 2>probe.log` to dump the
+  raw values with each field's `dataType`. Note also that an *undefined*
+  Actions repository variable interpolates to an empty string, not to
+  nothing — `build.py` treats a blank name as unset and `dashboard.yml`
+  supplies `|| 'default'`, so keep both if you add more `RISK_FIELD_*`
+  wiring.
+- **Single- vs multi-select.** `Risk Type` is the only multi-valued
+  field. `Consequence`, `Likelihood` and `Priority Level` must be Number /
+  Number / single-select; a multi-select declaration is tolerated (first
+  option wins, with a warning) but is a misconfiguration.
+- **Dormant GitHub schedules.** GitHub disables scheduled workflows in
+  repositories with no activity for 60 days, and pushes made with the
+  run's own `GITHUB_TOKEN` generally don't reset that clock. If the nightly
+  dashboard stops updating, re-enable the workflow in the Actions tab.
 
 ## License
 

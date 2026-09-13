@@ -4,3 +4,6 @@ __pycache__/
 public/
 data/history.ndjson
 docs/_build/
+.DS_Store
+probe.log
+Claude outputs/
