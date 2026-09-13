@@ -33,6 +33,13 @@ append semantics, and section parsing. Sample risks are based on
 examples from the NASA Risk Management Handbook (NASA/SP-2011-3422,
 Rev. A).
 
+``tests/test_build_github.py`` covers the GitHub provider: that both
+providers normalize to the same item dict, that risk values are read
+from ``Issue.issueFieldValues`` (organization issue fields, not
+Projects v2 board fields), issue-search pagination and its result cap,
+and field-name matching. It mocks every response, so it runs without a
+GitHub connection.
+
 ``tests/test_import_smartsheet.py`` covers the spreadsheet importer
 (see :doc:`importer`): the non-destructive proposal-block behavior,
 idempotent re-runs, heading-synonym matching, the bare-body fallback,
@@ -42,9 +49,12 @@ the suite runs without a GitLab connection or an ``.xlsx`` file.
 Continuous integration
 ----------------------
 
-Two GitHub Actions workflows run on this repository (note that the
-production dashboard pipeline itself runs on **GitLab**; these
-workflows only support development of the tool on GitHub):
+Four GitHub Actions workflows live in this repository. Three support
+development of the tool; ``dashboard.yml`` is a deployment pipeline and
+runs only for dashboards hosted on GitHub. The reference deployment
+still runs on **GitLab CI** via ``.gitlab-ci.yml`` (see
+:doc:`deployment`); the GitHub equivalent is described in
+:doc:`github-setup`.
 
 .. list-table::
    :header-rows: 1
@@ -53,12 +63,13 @@ workflows only support development of the tool on GitHub):
    * - Workflow
      - Purpose
    * - ``.github/workflows/test.yml``
-     - Runs both ``python tests/test_build.py`` and
+     - Runs ``python tests/test_build.py``,
+       ``python tests/test_build_github.py`` and
        ``python tests/test_import_smartsheet.py`` on every push and
        pull request. Exercises the full ``build.py`` pipeline against
-       mocked GitLab data (matrix counts, history append semantics,
-       section parsing, markdown sanitization, the rendered HTML) and
-       the importer's pure-Python helpers.
+       mocked GitLab and GitHub data (matrix counts, history append
+       semantics, section parsing, markdown sanitization, the rendered
+       HTML, provider parity) and the importer's pure-Python helpers.
    * - ``.github/workflows/scancode.yml``
      - License-scan gate. Runs
        `scancode-toolkit <https://github.com/aboutcode-org/scancode-toolkit>`_
@@ -67,6 +78,16 @@ workflows only support development of the tool on GitHub):
        ``scripts/check_scancode_allowlist.py``. Protects the GPL-3.0
        release from accidentally absorbing incompatibly-licensed code;
        see :doc:`license` for details and how to extend the allowlist.
+   * - ``.github/workflows/dashboard.yml``
+     - Deployment pipeline, not development support: the GitHub
+       Actions port of the ``.gitlab-ci.yml`` ``pages`` job. Builds the
+       dashboard on a daily schedule (or on demand), round-trips
+       ``data/history.ndjson`` through the orphan ``risk-history``
+       branch, and uploads ``public/``. The Pages deploy is gated on a
+       ``PUBLISH_PAGES`` repository variable, so it stays inert in this
+       repository, whose Pages site is this documentation. Requires
+       ``RISK_PROVIDER=github`` and the configuration in
+       :doc:`github-setup`.
    * - ``.github/workflows/docs.yml``
      - Documentation publisher. On push to ``main``, builds this
        Sphinx site under ``docs/`` and deploys the HTML to the

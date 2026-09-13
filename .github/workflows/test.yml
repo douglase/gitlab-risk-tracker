@@ -31,6 +31,9 @@ jobs:
       - name: Run build tests
         run: python tests/test_build.py
 
+      - name: Run GitHub-provider tests
+        run: python tests/test_build_github.py
+
       - name: Run smartsheet importer tests
         # Doesn't need openpyxl/requests at runtime: the importer
         # imports openpyxl lazily inside read_xlsx() and the tests

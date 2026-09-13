@@ -1,14 +1,17 @@
 gitlab-risk-tracker
 ===================
 
-A members-only GitLab Pages dashboard that renders a 5×5
-consequence-by-likelihood risk matrix for issues in a GitLab group,
-plus per-risk trend charts, a filterable risks table, and a daily
-append-only change-event history.
+A members-only Pages dashboard that renders a 5×5
+consequence-by-likelihood risk matrix for issues in a GitLab group or on
+a GitHub Projects v2 board, plus per-risk trend charts, a filterable
+risks table, and a daily append-only change-event history.
 
 The tool is designed for engineering organizations that already track
-risks as GitLab issues with custom fields and want a single read-only
-view of "where do we stand right now and how did we get here."
+risks as GitLab or GitHub issues with custom fields and want a single
+read-only view of "where do we stand right now and how did we get here."
+
+GitLab is the default provider. Set ``RISK_PROVIDER=github`` to read
+from GitHub instead; see :doc:`github-setup`.
 
 .. note::
 
@@ -26,6 +29,7 @@ view of "where do we stand right now and how did we get here."
    preview
    setup
    gitlab-setup
+   github-setup
    usage
    importer
    deployment

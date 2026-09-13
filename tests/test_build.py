@@ -33,6 +33,11 @@ sys.path.insert(0, str(ROOT))
 
 import build  # noqa: E402
 
+# This suite exercises the GitLab provider. Pin it, so an exported
+# RISK_PROVIDER=github in the caller's shell cannot silently redirect
+# normalize() at the GitHub branch and fail on GitLab-shaped fixtures.
+os.environ["RISK_PROVIDER"] = "gitlab"
+
 
 def _item(
     iid: int,
