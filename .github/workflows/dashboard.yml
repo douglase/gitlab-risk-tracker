@@ -1,0 +1,155 @@
+# Port of .gitlab-ci.yml's `pages` job to GitHub Actions.
+#
+# Mapping (see docs/github-setup.rst):
+#   rules: schedule/web      -> on: schedule / workflow_dispatch
+#   image: python:3.12-slim   -> runs-on: ubuntu-latest + setup-python
+#   before_script             -> the apt + pip steps
+#   artifacts: paths: public  -> actions/upload-pages-artifact
+#   GitLab Pages              -> actions/deploy-pages (gated, see below)
+#
+# The history round-trip is unchanged in spirit: data/history.ndjson lives
+# on an orphan `risk-history` branch, is restored before the build and
+# pushed back after, so the dashboard's trend charts survive across runs
+# without committing to the default branch (and without re-triggering CI).
+
+name: Risk dashboard
+
+on:
+  schedule:
+    - cron: '0 2 * * *'      # daily 02:00 UTC, same as the GitLab schedule
+  workflow_dispatch:
+
+permissions:
+  contents: write            # push the history snapshot branch
+  pages: write               # deploy to GitHub Pages
+  id-token: write            # required by actions/deploy-pages
+
+concurrency:
+  group: risk-dashboard
+  cancel-in-progress: false
+
+env:
+  HISTORY_BRANCH: risk-history
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install LibreOffice + Carlito
+        # libreoffice-impress + Carlito render the Top-5 MSR decks to PDF
+        # (Carlito stands in for the Aptos fonts the template uses; without
+        # it LibreOffice substitutes a wider font and the table overflows).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-impress fonts-crosextra-carlito fontconfig
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Restore history snapshot
+        run: |
+          mkdir -p data
+          if git fetch origin "${HISTORY_BRANCH}" 2>/dev/null; then
+            if git show "origin/${HISTORY_BRANCH}:data/history.ndjson" > data/history.ndjson 2>/dev/null; then
+              echo "Loaded $(wc -l < data/history.ndjson) prior history rows from ${HISTORY_BRANCH}."
+            else
+              echo "${HISTORY_BRANCH} branch exists but has no data/history.ndjson yet."
+            fi
+          else
+            echo "No ${HISTORY_BRANCH} branch yet — first run, starting fresh."
+          fi
+
+      - name: Build dashboard
+        env:
+          RISK_PROVIDER: github
+          # A PAT is required: a run's built-in GITHUB_TOKEN is scoped to
+          # its own repository and cannot read issues across the org.
+          # Scopes: `repo` (classic) or Issues: Read-only (fine-grained).
+          GITHUB_TOKEN: ${{ secrets.RISK_TOKEN }}
+          RISK_GITHUB_OWNER: ${{ vars.RISK_GITHUB_OWNER || github.repository_owner }}
+          # The GitHub issue type carrying the risk issue fields, e.g. "Risk".
+          RISK_GITHUB_ISSUE_TYPE: ${{ vars.RISK_GITHUB_ISSUE_TYPE }}
+          # Optional: replace the generated issue-search query outright.
+          RISK_GITHUB_SEARCH: ${{ vars.RISK_GITHUB_SEARCH }}
+          # Optional: issue-field names, if they differ from the defaults.
+          # `|| 'default'` matters: an UNDEFINED repository variable
+          # interpolates to the empty string, not to nothing, so without it
+          # build.py would receive RISK_FIELD_PRIORITY="" and match no field
+          # at all. build.py also treats a blank value as unset (env_or), so
+          # this is belt and braces.
+          RISK_FIELD_CONSEQUENCE: ${{ vars.RISK_FIELD_CONSEQUENCE || 'Consequence (C)' }}
+          RISK_FIELD_LIKELIHOOD: ${{ vars.RISK_FIELD_LIKELIHOOD || 'Likelihood (L)' }}
+          RISK_FIELD_PRIORITY: ${{ vars.RISK_FIELD_PRIORITY || 'Priority Level' }}
+          RISK_FIELD_RISK_TYPE: ${{ vars.RISK_FIELD_RISK_TYPE || 'Risk Type' }}
+          # An empty RISK_LABEL_FILTER is meaningful to build.py (it disables
+          # the filter), so it must not arrive blank by accident either.
+          RISK_LABEL_FILTER: ${{ vars.RISK_LABEL_FILTER || 'risk' }}
+        run: python build.py
+
+      - name: Push history snapshot
+        run: |
+          WORK=$(mktemp -d)
+          cd "${WORK}"
+          git init -q
+          git config user.email "risks-dashboard-bot@users.noreply.github.com"
+          git config user.name "risks-dashboard-bot"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@${GITHUB_SERVER_URL#https://}/${GITHUB_REPOSITORY}.git"
+          if git fetch --depth=1 origin "${HISTORY_BRANCH}" 2>/dev/null; then
+            git checkout -q FETCH_HEAD
+            git checkout -q -B "${HISTORY_BRANCH}"
+          else
+            echo "Creating ${HISTORY_BRANCH} branch."
+            git checkout -q -b "${HISTORY_BRANCH}"
+          fi
+          mkdir -p data
+          cp "${GITHUB_WORKSPACE}/data/history.ndjson" data/history.ndjson
+          git add data/history.ndjson
+          if git diff --cached --quiet; then
+            echo "No history changes to push."
+          else
+            git commit -q -m "snapshot: $(date -u +%F)"
+            git push origin "${HISTORY_BRANCH}:${HISTORY_BRANCH}"
+            echo "Pushed history snapshot to ${HISTORY_BRANCH}."
+          fi
+
+      # Always available as a run artifact, even when Pages is not used.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: public
+
+      - uses: actions/upload-pages-artifact@v3
+        if: vars.PUBLISH_PAGES == 'true'
+        with:
+          path: public
+
+  # Gated on the PUBLISH_PAGES repo variable because this repository's
+  # Pages site is the Sphinx documentation (see docs.yml). In a dedicated
+  # dashboard repo, set PUBLISH_PAGES=true and Settings → Pages → Source
+  # to "GitHub Actions".
+  #
+  # NOTE: GitHub Pages has no equivalent of GitLab's "Only project
+  # members" Pages access control outside GitHub Enterprise Cloud. On a
+  # public repo the dashboard is world-readable. Keep the repo private
+  # (Pages then requires Enterprise) or publish only the run artifact.
+  deploy:
+    needs: build
+    if: vars.PUBLISH_PAGES == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
