@@ -1553,6 +1553,7 @@ def render(items: list[dict], history: list[dict],
 
 
 def main() -> None:
+    print(f"Provider: {provider()} (scope: {scope_label()})", file=sys.stderr)
     schema_check()
     raw = fetch_work_items()
     all_items = [normalize(it) for it in raw]
